@@ -151,6 +151,13 @@ RADIUS_TRIGGER  = 5.0    # metres : seuil "tres proche" (audible 100%)
 AUDIBLE_RANGE_M = 30.0   # metres : portee max audible en proximite
 
 DEFAULT_FREQ_HZ = 10     # frequence OCR par defaut (10 lectures/seconde)
+# Frequence reduite quand l'OCR tourne sur CPU (fallback GPU non-NVIDIA,
+# Pascal trop ancien, ou pas de GPU). EasyOCR sur CPU coute 5-6 cores
+# d'un Ryzen 7 a 10 Hz (~40% CPU mesure sur 3700X), inutilisable en
+# parallele de Star Citizen qui est lui-meme CPU-bound. A 3 Hz on divise
+# le cout par ~3.5, le HUD de SC bouge assez lentement pour que ce soit
+# imperceptible cote proximity audio.
+CPU_MODE_FREQ_HZ = 3
 
 
 # ======================================================================
@@ -3777,6 +3784,26 @@ def _get_easy_ocr():
             _easy_ocr = False
     return _easy_ocr if _easy_ocr else None
 
+
+def _easyocr_is_on_cpu() -> bool:
+    """True si EasyOCR a fini en CPU (cas: pas de GPU NVIDIA, GPU detecte
+    trop ancien pour la build, ou force_cpu). Renvoie True aussi quand
+    aucun reader n'est encore initialise (par precaution: on prefere demarrer
+    en frequence reduite plutot que de saturer le CPU pendant l'init).
+
+    Lu par SCOCRReader._loop pour adapter la frequence d'OCR : CPU sature
+    pas assez vite a 10 Hz pour SC + Game ; on degrade a CPU_MODE_FREQ_HZ
+    quand on est sur CPU."""
+    reader = _easy_ocr
+    if not reader:
+        return True
+    # easyocr.Reader expose self.device ('cuda' | 'cpu') depuis 1.5+.
+    try:
+        device = getattr(reader, "device", "cpu")
+        return str(device).lower().startswith("cpu")
+    except Exception:
+        return True
+
 def _restore_minus_signs(img_bgr: _np.ndarray, results: list) -> list:
     """Pour chaque bounding box contenant un nombre, regarde les pixels
     juste a gauche du bord gauche pour detecter un '-' que EasyOCR aurait
@@ -4710,6 +4737,15 @@ class SCOCRReader:
 
         def _loop():
             interval = 1.0 / self._freq_hz
+            # [CPU MODE FREQ] On verifie une fois apres le 1er passage (qui
+            # declenche le lazy init d'EasyOCR) si on a fini sur CPU. Si oui,
+            # on degrade la frequence a CPU_MODE_FREQ_HZ pour eviter de
+            # saturer un Ryzen / Intel modeste qui doit aussi faire tourner
+            # Star Citizen. Le check se fait UNE fois apres init pour ne pas
+            # ajouter de cout par iteration ; cas degenere : si l'init traine
+            # (lazy plus tard), on tournera quelques tours a haute frequence
+            # avant de degrader, sans consequence.
+            cpu_mode_check_done = False
             while not self._stop_evt.is_set():
                 t0 = time.time()
                 try:
@@ -4728,6 +4764,19 @@ class SCOCRReader:
                                 _logger(f"on_position callback error: {e}")
                 except Exception as e:
                     _logger(f"OCR loop iteration error: {e}")
+                # Adaptation 1-shot du rythme apres l'init d'EasyOCR.
+                if not cpu_mode_check_done and _easy_ocr is not None:
+                    cpu_mode_check_done = True
+                    if _easyocr_is_on_cpu():
+                        cpu_interval = 1.0 / CPU_MODE_FREQ_HZ
+                        if cpu_interval > interval:
+                            _logger(
+                                f"[OCR] Mode CPU detecte (pas de GPU compatible). "
+                                f"Frequence reduite a {CPU_MODE_FREQ_HZ} Hz "
+                                f"(interval {interval:.2f}s -> {cpu_interval:.2f}s) "
+                                f"pour limiter le cout CPU pendant que SC tourne."
+                            )
+                            interval = cpu_interval
                 # Compense le temps OCR pour respecter la frequence cible
                 elapsed = time.time() - t0
                 sleep_for = max(0.001, interval - elapsed)
