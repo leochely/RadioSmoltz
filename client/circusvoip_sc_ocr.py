@@ -3691,8 +3691,55 @@ def _get_easy_ocr():
                     _logger(f"[OCR INIT] PyTorch {torch.__version__} - CUDA dispo MAIS mode CPU force")
                     cuda_ok = False
                 elif cuda_ok:
+                    # [CUDA CAPABILITY FALLBACK]
+                    # Verifier que le GPU est supporte par la build PyTorch installee.
+                    # Les wheels recents (cu12.x) droppent les vieilles archs : un GTX
+                    # 1080 (Pascal, sm_61) plante avec
+                    # `cudaErrorNoKernelImageForDevice` au 1er kernel lance. Le crash
+                    # n'est rattrapable qu'au moment de l'echec, ce qui pollue les
+                    # logs et retombe en Tesseract (mauvais OCR sur le HUD SC).
+                    # On detecte proactivement : si la SM du device est sous la SM
+                    # minimale presente dans torch.cuda.get_arch_list(), on force CPU
+                    # AVANT toute tentative GPU. L'utilisateur a un log clair, l'OCR
+                    # marche en CPU (lent mais fonctionnel), pas de fallback Tesseract.
                     device_name = torch.cuda.get_device_name(0)
-                    _logger(f"[OCR INIT] PyTorch {torch.__version__} - CUDA OK - Device: {device_name}")
+                    device_sm = None
+                    try:
+                        cap_major, cap_minor = torch.cuda.get_device_capability(0)
+                        device_sm = cap_major * 10 + cap_minor
+                        arch_list = torch.cuda.get_arch_list() or []
+                        # Entries : 'sm_70', 'sm_75', 'compute_80', ... On extrait le
+                        # numero quel que soit le prefixe. Vide -> on skip le check.
+                        supported = []
+                        for entry in arch_list:
+                            for prefix in ("sm_", "compute_"):
+                                if entry.startswith(prefix):
+                                    try:
+                                        supported.append(int(entry[len(prefix):]))
+                                    except ValueError:
+                                        pass
+                                    break
+                        if supported and device_sm < min(supported):
+                            _logger(
+                                f"[OCR INIT] PyTorch {torch.__version__} - GPU "
+                                f"{device_name} (sm_{device_sm}) trop ancien pour cette "
+                                f"build (min supporte sm_{min(supported)}, archs: "
+                                f"{sorted(set(supported))}). Fallback CPU pour eviter "
+                                f"cudaErrorNoKernelImageForDevice."
+                            )
+                            cuda_ok = False
+                    except Exception as e_cap:
+                        # On ne bloque pas l'init si la verif elle-meme echoue : on
+                        # log et on laisse le flow GPU continuer (comportement
+                        # historique). Si le GPU est effectivement incompatible, le
+                        # crash kernel arrivera plus tard mais on aura au moins
+                        # essaye de detecter.
+                        _logger(f"[OCR INIT] Verif compute capability KO ({e_cap}), "
+                                f"on tente GPU quand meme")
+                    if cuda_ok:
+                        cap_str = f" (sm_{device_sm})" if device_sm is not None else ""
+                        _logger(f"[OCR INIT] PyTorch {torch.__version__} - CUDA OK - "
+                                f"Device: {device_name}{cap_str}")
                 else:
                     _logger(f"[OCR INIT] PyTorch {torch.__version__} - CUDA INDISPONIBLE - EasyOCR sera en CPU (lent !)")
             except Exception as e:
