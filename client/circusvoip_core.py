@@ -2661,6 +2661,8 @@ from circusvoip_sc_ocr import (
     compute_proximity_volume,
     auto_ocr_zone,
     list_monitors,
+    resolve_ocr_interval,
+    _easyocr_is_on_cpu,
     _apply_sign_memory,
     _is_sign_flip,
     _are_containers_similar,
@@ -3045,23 +3047,18 @@ def _ocr_loop_inner(ui: "ClientUI"):
     )
     consecutive_empty = 0  # nb de tentatives consecutives sans parse OK
 
-    # v0.2 (optim perf) : cadence cible de la boucle OCR.
-    # Avant : pas de rate limiter -> sur GPU recent (3060+), la boucle
-    # tournait a 10-20 lectures/s (limite seulement par le temps pipeline
-    # cv2 + EasyOCR GPU). 4 lectures/s etait l'INTENTION (vu les
-    # commentaires "cadence normale ~4/s") mais pas garantie.
-    # Pour de la VoIP positionnelle, 2-3 lectures/s suffisent largement :
-    #  - le joueur ne se teleporte pas (les positions varient lentement)
-    #  - le mixage audio tolere 300-500ms de latence de position sans
-    #    artefact audible
-    #  - la distance au plus proche joueur est recalculee aussi a chaque
-    #    pos recue des AUTRES joueurs (independamment de notre cadence)
-    # Cible : 1 lecture toutes les 350ms = ~2.8 Hz. Si le pipeline OCR
-    # met deja 350ms ou plus, on ne dort pas (cadence naturelle = celle
-    # du pipeline). Sinon on dort la difference pour respecter la cible.
-    # NB : la cadence s'applique aussi hors connexion, car l'UI locale
-    # affiche la position courante / le container meme sans serveur.
-    OCR_TARGET_PERIOD_S = 0.35
+    # [OCR FREQ] Plafond de cadence configurable par l'utilisateur.
+    # "ocr_max_freq_hz" dans le config : "auto" (DEFAULT_FREQ_HZ sur GPU /
+    # CPU_MODE_FREQ_HZ sur CPU) ou un nombre de Hz. C'est un PLAFOND : si
+    # read_coords est deja plus lent que l'intervalle, on ne dort pas.
+    # Resolu apres la 1ere lecture parsee (qui aura declenche le lazy-init
+    # EasyOCR, donc determine CPU vs GPU pour le mode "auto"). Re-lu toutes
+    # les 30s pour appliquer un changement sans redemarrer le client.
+    try:
+        _ocr_freq_setting = _load_client_cfg().get("ocr_max_freq_hz", "auto")
+    except Exception:
+        _ocr_freq_setting = "auto"
+    _ocr_target_interval = None  # resolu apres la 1ere lecture parsee
 
     # v0.2 (optim perf) : backoff cadence sur position stable.
     # Observe en profiling : quand le joueur est immobile, le pipeline OCR
@@ -3070,11 +3067,10 @@ def _ocr_loop_inner(ui: "ClientUI"):
     # device CUDA plus frequentes quand l'image OCR ne change pas (cache
     # CUDA differemment sollicite). On compense en ralentissant la cadence
     # quand on a confirme l'immobilite (3 lectures identiques consecutives).
-    # Conservateur (-> latence max 500ms) : OK pour la VoIP, le joueur ne
-    # se met pas a courir a 100m/s d'un coup, et 1 lecture rapide suffira
-    # a redetecter le mouvement.
+    # En "stable" on prend max(intervalle utilisateur, OCR_STABLE_PERIOD_S)
+    # pour ne jamais aller plus vite que la cadence demandee.
     OCR_STABLE_THRESHOLD = 3        # nb de lectures identiques avant backoff
-    OCR_STABLE_PERIOD_S = 0.5       # periode quand position confirmee stable
+    OCR_STABLE_PERIOD_S = 0.5       # plancher de periode quand position confirmee stable
     # Quel "identique" : on compare container_id + x/y/z arrondis a 1m.
     # Les oscillations OCR sub-metrique (-84.76m vs -84.77m) ne reveillent
     # pas le backoff -> on profite bien de l'optim en pratique.
@@ -3083,7 +3079,10 @@ def _ocr_loop_inner(ui: "ClientUI"):
     last_stable_key = None          # tuple (cid, x, y, z) de la derniere lecture
 
     _ocr_last_iter_start = 0.0  # monotonic du debut du tour precedent (0 = pas encore)
-    _ocr_current_target_period_s = OCR_TARGET_PERIOD_S  # peut basculer en stable
+    # _ocr_current_target_period_s est resolu a la 1ere lecture parsee
+    # (apres lazy-init EasyOCR pour le mode "auto"). Tant qu'il est None ou 0,
+    # le rate-limiter ne dort pas (cadence naturelle du pipeline).
+    _ocr_current_target_period_s = None
 
     while True:
         # v0.2 (optim perf) : rate limiter cadence cible (dynamique).
@@ -3094,7 +3093,9 @@ def _ocr_loop_inner(ui: "ClientUI"):
         # tour precedent (peu importe les continue / branches dans la boucle).
         # Si le tour precedent a deja pris plus que la periode cible, on
         # ne dort pas (le pipeline OCR est deja le bottleneck).
-        if _ocr_last_iter_start > 0.0:
+        if (_ocr_last_iter_start > 0.0
+                and _ocr_current_target_period_s is not None
+                and _ocr_current_target_period_s > 0):
             _elapsed = time.monotonic() - _ocr_last_iter_start
             _to_sleep = _ocr_current_target_period_s - _elapsed
             if _to_sleep > 0:
@@ -3334,6 +3335,26 @@ def _ocr_loop_inner(ui: "ClientUI"):
             stats_parsed   = 0
             stats_rejected = 0
             stats_cid_similar = 0
+
+            # [OCR FREQ] Re-lire le reglage de cadence pour appliquer un
+            # changement sans redemarrage (l'utilisateur peut ajuster en
+            # cours de session s'il constate un suivi trop lent ou trop
+            # gourmand en CPU). Le re-read tombe dans la fenetre stats deja
+            # cadencee a STATS_PERIOD_S, pas besoin d'un timer dedie.
+            try:
+                _new_setting = _load_client_cfg().get("ocr_max_freq_hz", "auto")
+                if _new_setting != _ocr_freq_setting:
+                    _ocr_freq_setting = _new_setting
+                    _ocr_target_interval = resolve_ocr_interval(
+                        _ocr_freq_setting, _easyocr_is_on_cpu()
+                    )
+                    _hz = (1.0 / _ocr_target_interval) if _ocr_target_interval > 0 else 0
+                    _dbg_log(
+                        f"[OCR] Cadence cible mise a jour : reglage={_ocr_freq_setting!r} "
+                        f"-> {'illimitee' if _hz == 0 else f'{_hz:.1f} Hz'}"
+                    )
+            except Exception:
+                pass
 
         # Cleanup VRAM CUDA periodique : libere la memoire fragmentee
         # accumulee par les nombreuses lectures EasyOCR. Sur les petites
@@ -3864,14 +3885,30 @@ def _ocr_loop_inner(ui: "ClientUI"):
                 # la boucle OCR (qui doit tourner pour la VoIP positionnelle).
                 pass
 
+            # [OCR FREQ] A la 1ere lecture parsee, read_coords a deja
+            # declenche le lazy-init EasyOCR : on sait si on tourne en
+            # CPU ou GPU pour resoudre le mode "auto". Cette resolution
+            # se fait UNE fois par boucle ; les changements ulterieurs
+            # sont captures par le re-read toutes les 30s dans le bloc
+            # stats (cf. plus haut).
+            if _ocr_target_interval is None:
+                _ocr_target_interval = resolve_ocr_interval(
+                    _ocr_freq_setting, _easyocr_is_on_cpu()
+                )
+                _hz0 = (1.0 / _ocr_target_interval) if _ocr_target_interval > 0 else 0
+                _dbg_log(
+                    f"[OCR] Cadence cible : reglage={_ocr_freq_setting!r} -> "
+                    f"{'illimitee' if _hz0 == 0 else f'{_hz0:.1f} Hz'} "
+                    f"(CPU={_easyocr_is_on_cpu()})"
+                )
+
             # v0.2 (optim perf) : detection position stable -> bascule cadence.
             # On compare la position courante (arrondie a OCR_STABLE_ROUND_M
             # metres) avec la precedente. Si identiques sur OCR_STABLE_THRESHOLD
             # lectures consecutives, on passe en cadence "stable" (plus lente).
             # Des qu'une difference apparait, retour immediat a la cadence
-            # "mouvement". L'arrondi a 1m permet d'ignorer les oscillations
-            # sub-metrique de l'OCR (ex: -84.76m vs -84.77m) qui ne sont pas
-            # de vrais mouvements.
+            # "mouvement" choisie par l'utilisateur. L'arrondi a 1m permet
+            # d'ignorer les oscillations sub-metrique de l'OCR.
             try:
                 _cur_key = (
                     pos.get("container_id"),
@@ -3884,14 +3921,27 @@ def _ocr_loop_inner(ui: "ClientUI"):
                 else:
                     consecutive_stable = 1
                 last_stable_key = _cur_key
-                # Bascule de cadence
-                if consecutive_stable >= OCR_STABLE_THRESHOLD:
-                    _ocr_current_target_period_s = OCR_STABLE_PERIOD_S
+                # Bascule de cadence. La base = intervalle configure par
+                # l'utilisateur ; en mode stable on prend max(base, 0.5s)
+                # pour ralentir sans jamais aller plus vite que la cadence
+                # demandee. Cas "illimite" (_ocr_target_interval == 0) :
+                # cadence naturelle en mouvement, OCR_STABLE_PERIOD_S quand
+                # stable (sinon stable n'aurait aucun effet).
+                if _ocr_target_interval is None or _ocr_target_interval <= 0:
+                    _ocr_current_target_period_s = (
+                        OCR_STABLE_PERIOD_S
+                        if consecutive_stable >= OCR_STABLE_THRESHOLD
+                        else 0.0
+                    )
+                elif consecutive_stable >= OCR_STABLE_THRESHOLD:
+                    _ocr_current_target_period_s = max(
+                        _ocr_target_interval, OCR_STABLE_PERIOD_S
+                    )
                 else:
-                    _ocr_current_target_period_s = OCR_TARGET_PERIOD_S
+                    _ocr_current_target_period_s = _ocr_target_interval
             except Exception:
                 # Si erreur (pos malforme), on reste en cadence mouvement
-                _ocr_current_target_period_s = OCR_TARGET_PERIOD_S
+                _ocr_current_target_period_s = _ocr_target_interval
                 consecutive_stable = 0
 
 # ---------------------------------------------

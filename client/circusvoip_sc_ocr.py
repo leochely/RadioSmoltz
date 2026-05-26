@@ -3791,9 +3791,8 @@ def _easyocr_is_on_cpu() -> bool:
     aucun reader n'est encore initialise (par precaution: on prefere demarrer
     en frequence reduite plutot que de saturer le CPU pendant l'init).
 
-    Lu par SCOCRReader._loop pour adapter la frequence d'OCR : CPU sature
-    pas assez vite a 10 Hz pour SC + Game ; on degrade a CPU_MODE_FREQ_HZ
-    quand on est sur CPU."""
+    Lu par la boucle OCR du client pour adapter la frequence : CPU ne tient
+    pas 10 Hz en parallele de SC, on degrade a CPU_MODE_FREQ_HZ en mode auto."""
     reader = _easy_ocr
     if not reader:
         return True
@@ -3803,6 +3802,34 @@ def _easyocr_is_on_cpu() -> bool:
         return str(device).lower().startswith("cpu")
     except Exception:
         return True
+
+
+# Choix utilisateur de la cadence OCR. Stocke dans le config client sous
+# "ocr_max_freq_hz" : soit "auto", soit un nombre de Hz. La cadence est un
+# PLAFOND : si une lecture OCR prend deja plus longtemps que l'intervalle
+# cible, on ne dort pas (la lecture elle-meme est le facteur limitant).
+# Augmenter la frequence ameliore la reactivite du suivi de position au prix
+# de plus de CPU/GPU ; la baisser economise des ressources.
+OCR_FREQ_PRESETS_HZ = (1, 2, 3, 5, 8, 10)
+
+
+def resolve_ocr_interval(setting, on_cpu: bool) -> float:
+    """Convertit le reglage utilisateur en intervalle minimal (secondes)
+    entre deux lectures OCR. Retourne 0.0 pour "illimite" (aucun plafond).
+
+    setting : "auto" / None -> 10 Hz si GPU, CPU_MODE_FREQ_HZ si CPU.
+              nombre (Hz)    -> 1/Hz. <= 0 interprete comme illimite.
+              valeur invalide -> repli sur le comportement auto.
+    """
+    if setting is None or (isinstance(setting, str) and setting.strip().lower() == "auto"):
+        return 1.0 / CPU_MODE_FREQ_HZ if on_cpu else 1.0 / DEFAULT_FREQ_HZ
+    try:
+        hz = float(setting)
+    except (TypeError, ValueError):
+        return 1.0 / CPU_MODE_FREQ_HZ if on_cpu else 1.0 / DEFAULT_FREQ_HZ
+    if hz <= 0:
+        return 0.0  # illimite
+    return 1.0 / hz
 
 def _restore_minus_signs(img_bgr: _np.ndarray, results: list) -> list:
     """Pour chaque bounding box contenant un nombre, regarde les pixels

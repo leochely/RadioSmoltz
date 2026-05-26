@@ -1743,7 +1743,7 @@ _CORE_MANAGED_CFG_KEYS = frozenset({
     # Overlays
     "overlays_active", "overlays_config", "overlays_show",
     # OCR
-    "ocr_force_cpu", "zone_coords", "zone_source",
+    "ocr_force_cpu", "ocr_max_freq_hz", "zone_coords", "zone_source",
     # Gamelog SC
     "gamelog_path",
     # Mode RP
@@ -11189,6 +11189,56 @@ class MainWindow(QMainWindow):
         self._refresh_ocr_mode_info()
         v_ocr.addWidget(self.lbl_ocr_mode_info)
 
+        # --- Cadence OCR (frequence de lecture de la position) ---
+        # Plafond du nombre de lectures OCR par seconde. Plus haut = suivi
+        # de position plus reactif mais plus de CPU/GPU ; plus bas =
+        # economie de ressources au prix d'un suivi plus lent. "Automatique"
+        # choisit 10/s sur GPU et 3/s sur CPU. Les valeurs (libelle ->
+        # reglage stocke) doivent rester alignees avec resolve_ocr_interval
+        # cote core.
+        row_freq = QHBoxLayout()
+        row_freq.addWidget(QLabel("Cadence OCR :"))
+        self.cb_ocr_freq = QComboBox()
+        # (libelle affiche, valeur config). "auto" est une chaine, les
+        # autres sont des entiers Hz serialisables tels quels en JSON.
+        self._ocr_freq_options = [
+            ("Automatique (recommande)", "auto"),
+            ("Maximale - 10/s (tres reactif, +CPU)", 10),
+            ("Elevee - 8/s", 8),
+            ("Moyenne - 5/s", 5),
+            ("Basse - 3/s (econome)", 3),
+            ("Minimale - 2/s", 2),
+            ("Tres basse - 1/s", 1),
+        ]
+        for label, _val in self._ocr_freq_options:
+            self.cb_ocr_freq.addItem(label)
+        # Selection initiale depuis le config client1.
+        _cur_freq = "auto"
+        if _CORE_AVAILABLE:
+            try:
+                _cur_freq = _core._load_client_cfg().get("ocr_max_freq_hz", "auto")
+            except Exception:
+                _cur_freq = "auto"
+        else:
+            _cur_freq = self._cfg.get("ocr_max_freq_hz", "auto")
+        _sel_idx = next(
+            (i for i, (_l, v) in enumerate(self._ocr_freq_options) if v == _cur_freq),
+            0,
+        )
+        self.cb_ocr_freq.setCurrentIndex(_sel_idx)
+        self.cb_ocr_freq.currentIndexChanged.connect(self._on_ocr_freq_changed)
+        row_freq.addWidget(self.cb_ocr_freq, stretch=1)
+        v_ocr.addLayout(row_freq)
+
+        self.lbl_ocr_freq_info = QLabel(
+            "Augmenter si le suivi de position est saccade ; baisser si le "
+            "client consomme trop de CPU en jeu. Applique sous ~30s, sans "
+            "redemarrage."
+        )
+        self.lbl_ocr_freq_info.setStyleSheet("color: #888; font-size: 9pt;")
+        self.lbl_ocr_freq_info.setWordWrap(True)
+        v_ocr.addWidget(self.lbl_ocr_freq_info)
+
         # Separateur visuel avant le masque DisplayInfo : sujet different
         # (rendu graphique a l'ecran, vs choix CPU/GPU pour le moteur OCR).
         sep_ocr = QFrame()
@@ -12685,6 +12735,27 @@ class MainWindow(QMainWindow):
             "Le changement sera applique au prochain demarrage de "
             "CircusVOIP (EasyOCR ne peut pas etre reinitialise a chaud).",
         )
+
+    def _on_ocr_freq_changed(self, index: int):
+        """Cadence OCR : ecrit ocr_max_freq_hz dans la config CLIENT1
+        (lue par _ocr_loop_inner dans circusvoip_core.py). La boucle OCR
+        re-lit ce reglage toutes les 30s, donc pas besoin de redemarrer."""
+        try:
+            _label, value = self._ocr_freq_options[index]
+        except (IndexError, AttributeError):
+            return
+        if _CORE_AVAILABLE:
+            try:
+                core_cfg = _core._load_client_cfg()
+                core_cfg["ocr_max_freq_hz"] = value
+                _core._save_client_cfg(core_cfg)
+                self._on_log(f"[OCR] cadence={value!r} sauve dans "
+                             f"circusvoip_client_config.json")
+            except Exception as e:
+                self._on_log(f"[OCR] Echec ecriture cadence config client1 : {e}")
+        # Copie dans notre config aussi (coherence avec ocr_force_cpu).
+        self._cfg["ocr_max_freq_hz"] = value
+        _save_cfg(self._cfg)
 
     def _refresh_ocr_mode_info(self):
         if not hasattr(self, "lbl_ocr_mode_info"):
