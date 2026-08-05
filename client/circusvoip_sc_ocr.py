@@ -151,6 +151,13 @@ RADIUS_TRIGGER  = 5.0    # metres : seuil "tres proche" (audible 100%)
 AUDIBLE_RANGE_M = 30.0   # metres : portee max audible en proximite
 
 DEFAULT_FREQ_HZ = 10     # frequence OCR par defaut (10 lectures/seconde)
+# Frequence reduite quand l'OCR tourne sur CPU (fallback GPU non-NVIDIA,
+# Pascal trop ancien, ou pas de GPU). EasyOCR sur CPU coute 5-6 cores
+# d'un Ryzen 7 a 10 Hz (~40% CPU mesure sur 3700X), inutilisable en
+# parallele de Star Citizen qui est lui-meme CPU-bound. A 3 Hz on divise
+# le cout par ~3.5, le HUD de SC bouge assez lentement pour que ce soit
+# imperceptible cote proximity audio.
+CPU_MODE_FREQ_HZ = 3
 
 
 # ======================================================================
@@ -3691,8 +3698,55 @@ def _get_easy_ocr():
                     _logger(f"[OCR INIT] PyTorch {torch.__version__} - CUDA dispo MAIS mode CPU force")
                     cuda_ok = False
                 elif cuda_ok:
+                    # [CUDA CAPABILITY FALLBACK]
+                    # Verifier que le GPU est supporte par la build PyTorch installee.
+                    # Les wheels recents (cu12.x) droppent les vieilles archs : un GTX
+                    # 1080 (Pascal, sm_61) plante avec
+                    # `cudaErrorNoKernelImageForDevice` au 1er kernel lance. Le crash
+                    # n'est rattrapable qu'au moment de l'echec, ce qui pollue les
+                    # logs et retombe en Tesseract (mauvais OCR sur le HUD SC).
+                    # On detecte proactivement : si la SM du device est sous la SM
+                    # minimale presente dans torch.cuda.get_arch_list(), on force CPU
+                    # AVANT toute tentative GPU. L'utilisateur a un log clair, l'OCR
+                    # marche en CPU (lent mais fonctionnel), pas de fallback Tesseract.
                     device_name = torch.cuda.get_device_name(0)
-                    _logger(f"[OCR INIT] PyTorch {torch.__version__} - CUDA OK - Device: {device_name}")
+                    device_sm = None
+                    try:
+                        cap_major, cap_minor = torch.cuda.get_device_capability(0)
+                        device_sm = cap_major * 10 + cap_minor
+                        arch_list = torch.cuda.get_arch_list() or []
+                        # Entries : 'sm_70', 'sm_75', 'compute_80', ... On extrait le
+                        # numero quel que soit le prefixe. Vide -> on skip le check.
+                        supported = []
+                        for entry in arch_list:
+                            for prefix in ("sm_", "compute_"):
+                                if entry.startswith(prefix):
+                                    try:
+                                        supported.append(int(entry[len(prefix):]))
+                                    except ValueError:
+                                        pass
+                                    break
+                        if supported and device_sm < min(supported):
+                            _logger(
+                                f"[OCR INIT] PyTorch {torch.__version__} - GPU "
+                                f"{device_name} (sm_{device_sm}) trop ancien pour cette "
+                                f"build (min supporte sm_{min(supported)}, archs: "
+                                f"{sorted(set(supported))}). Fallback CPU pour eviter "
+                                f"cudaErrorNoKernelImageForDevice."
+                            )
+                            cuda_ok = False
+                    except Exception as e_cap:
+                        # On ne bloque pas l'init si la verif elle-meme echoue : on
+                        # log et on laisse le flow GPU continuer (comportement
+                        # historique). Si le GPU est effectivement incompatible, le
+                        # crash kernel arrivera plus tard mais on aura au moins
+                        # essaye de detecter.
+                        _logger(f"[OCR INIT] Verif compute capability KO ({e_cap}), "
+                                f"on tente GPU quand meme")
+                    if cuda_ok:
+                        cap_str = f" (sm_{device_sm})" if device_sm is not None else ""
+                        _logger(f"[OCR INIT] PyTorch {torch.__version__} - CUDA OK - "
+                                f"Device: {device_name}{cap_str}")
                 else:
                     _logger(f"[OCR INIT] PyTorch {torch.__version__} - CUDA INDISPONIBLE - EasyOCR sera en CPU (lent !)")
             except Exception as e:
@@ -3729,6 +3783,53 @@ def _get_easy_ocr():
             _logger(f"[OCR INIT] Echec EasyOCR : {e}")
             _easy_ocr = False
     return _easy_ocr if _easy_ocr else None
+
+
+def _easyocr_is_on_cpu() -> bool:
+    """True si EasyOCR a fini en CPU (cas: pas de GPU NVIDIA, GPU detecte
+    trop ancien pour la build, ou force_cpu). Renvoie True aussi quand
+    aucun reader n'est encore initialise (par precaution: on prefere demarrer
+    en frequence reduite plutot que de saturer le CPU pendant l'init).
+
+    Lu par la boucle OCR du client pour adapter la frequence : CPU ne tient
+    pas 10 Hz en parallele de SC, on degrade a CPU_MODE_FREQ_HZ en mode auto."""
+    reader = _easy_ocr
+    if not reader:
+        return True
+    # easyocr.Reader expose self.device ('cuda' | 'cpu') depuis 1.5+.
+    try:
+        device = getattr(reader, "device", "cpu")
+        return str(device).lower().startswith("cpu")
+    except Exception:
+        return True
+
+
+# Choix utilisateur de la cadence OCR. Stocke dans le config client sous
+# "ocr_max_freq_hz" : soit "auto", soit un nombre de Hz. La cadence est un
+# PLAFOND : si une lecture OCR prend deja plus longtemps que l'intervalle
+# cible, on ne dort pas (la lecture elle-meme est le facteur limitant).
+# Augmenter la frequence ameliore la reactivite du suivi de position au prix
+# de plus de CPU/GPU ; la baisser economise des ressources.
+OCR_FREQ_PRESETS_HZ = (1, 2, 3, 5, 8, 10)
+
+
+def resolve_ocr_interval(setting, on_cpu: bool) -> float:
+    """Convertit le reglage utilisateur en intervalle minimal (secondes)
+    entre deux lectures OCR. Retourne 0.0 pour "illimite" (aucun plafond).
+
+    setting : "auto" / None -> 10 Hz si GPU, CPU_MODE_FREQ_HZ si CPU.
+              nombre (Hz)    -> 1/Hz. <= 0 interprete comme illimite.
+              valeur invalide -> repli sur le comportement auto.
+    """
+    if setting is None or (isinstance(setting, str) and setting.strip().lower() == "auto"):
+        return 1.0 / CPU_MODE_FREQ_HZ if on_cpu else 1.0 / DEFAULT_FREQ_HZ
+    try:
+        hz = float(setting)
+    except (TypeError, ValueError):
+        return 1.0 / CPU_MODE_FREQ_HZ if on_cpu else 1.0 / DEFAULT_FREQ_HZ
+    if hz <= 0:
+        return 0.0  # illimite
+    return 1.0 / hz
 
 def _restore_minus_signs(img_bgr: _np.ndarray, results: list) -> list:
     """Pour chaque bounding box contenant un nombre, regarde les pixels
@@ -4663,6 +4764,15 @@ class SCOCRReader:
 
         def _loop():
             interval = 1.0 / self._freq_hz
+            # [CPU MODE FREQ] On verifie une fois apres le 1er passage (qui
+            # declenche le lazy init d'EasyOCR) si on a fini sur CPU. Si oui,
+            # on degrade la frequence a CPU_MODE_FREQ_HZ pour eviter de
+            # saturer un Ryzen / Intel modeste qui doit aussi faire tourner
+            # Star Citizen. Le check se fait UNE fois apres init pour ne pas
+            # ajouter de cout par iteration ; cas degenere : si l'init traine
+            # (lazy plus tard), on tournera quelques tours a haute frequence
+            # avant de degrader, sans consequence.
+            cpu_mode_check_done = False
             while not self._stop_evt.is_set():
                 t0 = time.time()
                 try:
@@ -4681,6 +4791,19 @@ class SCOCRReader:
                                 _logger(f"on_position callback error: {e}")
                 except Exception as e:
                     _logger(f"OCR loop iteration error: {e}")
+                # Adaptation 1-shot du rythme apres l'init d'EasyOCR.
+                if not cpu_mode_check_done and _easy_ocr is not None:
+                    cpu_mode_check_done = True
+                    if _easyocr_is_on_cpu():
+                        cpu_interval = 1.0 / CPU_MODE_FREQ_HZ
+                        if cpu_interval > interval:
+                            _logger(
+                                f"[OCR] Mode CPU detecte (pas de GPU compatible). "
+                                f"Frequence reduite a {CPU_MODE_FREQ_HZ} Hz "
+                                f"(interval {interval:.2f}s -> {cpu_interval:.2f}s) "
+                                f"pour limiter le cout CPU pendant que SC tourne."
+                            )
+                            interval = cpu_interval
                 # Compense le temps OCR pour respecter la frequence cible
                 elapsed = time.time() - t0
                 sleep_for = max(0.001, interval - elapsed)
