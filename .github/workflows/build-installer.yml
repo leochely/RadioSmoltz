@@ -67,7 +67,7 @@ jobs:
     timeout-minutes: 120
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Determiner composant et version
         id: cfg
@@ -122,7 +122,7 @@ jobs:
           }
 
       - name: Cache du runtime python-build-standalone
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: installer/.cache
           key: pbs-${{ runner.os }}-py312-${{ hashFiles('installer/build-installer.ps1') }}
@@ -178,7 +178,7 @@ jobs:
           }
           $sums | Tee-Object -FilePath installer\out\SHA256SUMS.txt
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: circusvoip-installers-${{ steps.cfg.outputs.component }}
           path: |
