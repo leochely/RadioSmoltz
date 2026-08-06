@@ -99,6 +99,13 @@ docker compose exec positions cat /data/circusvoip_admin_token.json
   nettement plus vite avec CUDA. Sans GPU NVIDIA, ça fonctionne en CPU
   mais c'est plus lent et plus gourmand.
 
+  L'installeur demande quelle variante télécharger : **CPU** (243 Mo,
+  compatible AMD/Intel/NVIDIA) ou **NVIDIA CUDA** (~2 Go, accélération
+  GPU). Une carte AMD n'a donc rien à télécharger de spécifique à CUDA.
+  Attention : la variante CPU est celle que l'on obtient par défaut, y
+  compris sur une machine NVIDIA — pour profiter du GPU il faut choisir
+  explicitement CUDA à l'installation.
+
 ### Dépendances Python
 
 - **Serveur** : `websockets`, `cryptography`.
@@ -251,6 +258,26 @@ Dans les paramètres du client, définissez :
 
 N'importe quelle touche ou combinaison de 2 touches clavier ou bouton
 souris peut être assignée.
+
+## Construire les installeurs
+
+Les `.exe` publiés dans les releases sont produits par la chaîne de packaging
+du dossier [`installer/`](installer/) : un runtime Python embarqué
+(python-build-standalone) plus les sources, emballés par Inno Setup. Aucun
+Python n'est requis sur la machine du joueur.
+
+```powershell
+# Inno Setup 6 requis (ou -InstallInnoSetup pour le laisser s'installer)
+.\installer\build-installer.ps1                      # client
+.\installer\build-installer.ps1 -Component both      # client + serveur
+```
+
+Le résultat atterrit dans `installer\out\`.
+
+Le build tourne aussi sur GitHub Actions : pousser un tag `client-v*` ou
+`server-v*` construit l'installeur correspondant, le teste, et l'attache à la
+release. Détails, options et points d'attention :
+[installer/README.md](installer/README.md).
 
 ## Architecture
 
