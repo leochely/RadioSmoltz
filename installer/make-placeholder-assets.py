@@ -21,7 +21,11 @@ dans circusvoip_audio_io.py), et un placeholder serait moins bon que le repli.
 Les WAV sont ecrits en PCM 16 bits mono 48 kHz : c'est le seul format que
 _load_wav_as_float32 accepte sans conversion.
 
-Usage : python make-placeholder-assets.py <dossier_app>
+Usage : python make-placeholder-assets.py [--icon-only] <dossier_app>
+
+--icon-only sert au payload serveur : celui-ci a besoin de l'icone (pour
+l'installeur, les raccourcis et les lanceurs compiles) mais n'a ni soundboard
+ni sonneries.
 """
 
 import math
@@ -183,10 +187,12 @@ def _write_ico(path: Path, sizes=(16, 32, 48, 256)) -> None:
 # ----------------------------------------------------------------------
 
 def main() -> int:
-    if len(sys.argv) < 2:
-        print("usage: make-placeholder-assets.py <dossier_app>")
+    argv = [a for a in sys.argv[1:] if a != "--icon-only"]
+    icon_only = "--icon-only" in sys.argv
+    if not argv:
+        print("usage: make-placeholder-assets.py [--icon-only] <dossier_app>")
         return 2
-    app_dir = Path(sys.argv[1]).resolve()
+    app_dir = Path(argv[0]).resolve()
     if not app_dir.is_dir():
         print(f"[ASSETS] Dossier introuvable : {app_dir}")
         return 1
@@ -200,20 +206,24 @@ def main() -> int:
         _write_ico(ico)
         created.append(ico.name)
 
-    alarm = app_dir / "sounds" / "alarm.wav"
-    if alarm.exists():
-        print(f"[ASSETS] Conserve : sounds/{alarm.name}")
-    else:
-        _write_wav(alarm, _alarm_samples())
-        created.append("sounds/alarm.wav")
-
-    for name in ("ring.wav", "dial.wav", "notif.wav"):
-        target = app_dir / "sounds" / name
-        if target.exists():
-            print(f"[ASSETS] Conserve : sounds/{name}")
+    # --icon-only : payload serveur. Il n'a ni soundboard ni sonneries, mais
+    # il a besoin de l'icone -- pour l'installeur, les raccourcis et les
+    # lanceurs compiles.
+    if not icon_only:
+        alarm = app_dir / "sounds" / "alarm.wav"
+        if alarm.exists():
+            print(f"[ASSETS] Conserve : sounds/{alarm.name}")
         else:
-            print(f"[ASSETS] sounds/{name} absent : le client synthetisera "
-                  f"son propre motif (pas de placeholder).")
+            _write_wav(alarm, _alarm_samples())
+            created.append("sounds/alarm.wav")
+
+        for name in ("ring.wav", "dial.wav", "notif.wav"):
+            target = app_dir / "sounds" / name
+            if target.exists():
+                print(f"[ASSETS] Conserve : sounds/{name}")
+            else:
+                print(f"[ASSETS] sounds/{name} absent : le client synthetisera "
+                      f"son propre motif (pas de placeholder).")
 
     if created:
         print(f"[ASSETS] Placeholders generes : {', '.join(created)}")

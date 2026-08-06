@@ -15,6 +15,12 @@
 ;      <InstallDir>\runtime\python.exe           <- CPython embarque (PBS)
 ;      <InstallDir>\runtime\Lib\site-packages\   <- dependances pip
 ;
+;  La console d'administration (circusvoip_admin.py) est livree ici, bien
+;  qu'elle vienne de server\ : elle administre un serveur a distance depuis le
+;  poste de l'administrateur. Elle persiste son IP et son token dans
+;  app\circusvoip_admin_config.json, conserve a la desinstallation comme le
+;  reste de la configuration.
+;
 ;  L'installation se fait par defaut dans {localappdata} et non dans
 ;  Program Files : le client ecrit sa configuration, ses conversations
 ;  CircusPhone et ses mises a jour auto-appliquees DANS app\, ce qui
@@ -70,6 +76,7 @@
 #define AppPublisher   "Kainan"
 #define AppUrl         "https://github.com/kainann/CircusVOIP"
 #define ClientScript   "circusvoip_client.py"
+#define AdminScript    "circusvoip_admin.py"
 #define IconRelative   "app\StarCircus.ico"
 #define HasIcon        FileExists(AddBackslash(PayloadDir) + IconRelative)
 
@@ -158,6 +165,13 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\runtime\pythonw.exe"; Paramet
 ; Variante console : affiche les logs [BOOT]/[OCR]/[UPDATE] et la progression
 ; du bootstrap pip. Indispensable pour diagnostiquer un demarrage qui echoue.
 Name: "{group}\{#AppName} (console de diagnostic)"; Filename: "{app}\runtime\python.exe"; Parameters: """{app}\app\{#ClientScript}"""; WorkingDir: "{app}\app"; IconFilename: "{#ShortcutIcon}"; Tasks: consoleicon
+
+; Console d'administration (circusvoip_admin.py). Elle vit dans server\ dans
+; le depot mais s'installe ici : elle pilote un serveur A DISTANCE, en wss://
+; sur le port 8888, et sert donc depuis le poste de l'administrateur -- pas
+; depuis le VPS ou le conteneur qui heberge les serveurs. pythonw.exe : c'est
+; une interface tkinter, elle n'a rien a dire sur stdout.
+Name: "{group}\Console d'administration"; Filename: "{app}\runtime\pythonw.exe"; Parameters: """{app}\app\{#AdminScript}"""; WorkingDir: "{app}\app"; IconFilename: "{#ShortcutIcon}"; Comment: "Administrer un serveur CircusVOIP a distance"
 
 Name: "{group}\Dossier d'installation"; Filename: "{app}"
 Name: "{group}\{cm:UninstallProgram,{#AppName}}"; Filename: "{uninstallexe}"

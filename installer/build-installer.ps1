@@ -13,6 +13,8 @@
       3. pip install des dependances dans runtime\Lib\site-packages.
       4. Staging du payload : app\ (sources + assets + circusvoip_version.json)
          et runtime\.
+      4bis. Cote serveur uniquement : compilation des lanceurs bin\*.exe
+         (cf. installer\launcher\launcher-template.cs).
       5. Compilation du .iss par ISCC.exe -> installer\out\*.exe
 
     Le layout d'installation produit est celui que le code client attend
@@ -22,6 +24,17 @@
 
         <InstallDir>\app\circusvoip_client.py, sounds\, StarCircus.ico, ...
         <InstallDir>\runtime\python.exe, Lib\site-packages\...
+
+    Cote serveur, s'y ajoutent les lanceurs, a la racine de l'installation :
+
+        <InstallDir>\CircusVOIP-Servers.exe     <- demarre les deux GUI
+        <InstallDir>\CircusVOIP-Positions.exe   <- port 8888 seul
+        <InstallDir>\CircusVOIP-Audio.exe       <- port 8889 seul
+
+    Repartition client / serveur : les deux interfaces de serveur (positions
+    et audio) vont dans l'installeur serveur, la console d'administration
+    (circusvoip_admin.py) part avec le CLIENT -- elle administre un serveur a
+    distance et n'a rien a faire sur la machine qui l'heberge.
 
 .PARAMETER Component
     client, server ou both. Defaut : client.
@@ -83,8 +96,8 @@
     la reinstallation des dependances).
 
 .PARAMETER SkipPrune
-    Ne supprime pas les fichiers inutiles du runtime (test suite, tkinter cote
-    client, outils Qt...). Utile pour diagnostiquer un import manquant.
+    Ne supprime pas les fichiers inutiles du runtime (test suite, idlelib,
+    outils Qt...). Utile pour diagnostiquer un import manquant.
 
 .PARAMETER NoPlaceholders
     N'genere pas les assets manquants (StarCircus.ico, sounds\alarm.wav).
@@ -171,8 +184,37 @@ $ServerModules = @(
     'circusvoip_audio_server.py',
     'circusvoip_security.py',
     'circusvoip_server_config.py',
-    'circusvoip_admin.py',
     'circusvoip_update_server.py'
+)
+
+# Modules pris dans l'AUTRE dossier source. circusvoip_admin.py vit dans
+# server\ parce qu'il parle le protocole d'administration du serveur, mais
+# c'est une console d'administration DISTANTE (wss:// vers le port 8888) :
+# elle a sa place sur le poste de l'administrateur, pas sur la machine qui
+# heberge les serveurs -- laquelle sera souvent un VPS ou un docker compose,
+# sans session graphique. On l'embarque donc avec le client.
+#
+# Ses dependances sont deja la cote client : websockets, tkinter (fourni par
+# le runtime, cf. Optimize-Runtime) et circusvoip_security, dont la copie
+# client expose bien build_client_ssl_context_insecure().
+$ClientExtraModules = @(
+    @{ From = 'server'; File = 'circusvoip_admin.py' }
+)
+
+# Lanceurs .exe compiles pour le serveur (cf. installer\launcher\, qui
+# detaille le pourquoi). En resume : un raccourci vers pythonw.exe ne sait
+# demarrer qu'un seul script, et n'est pas un fichier qu'on peut copier,
+# epingler ou appeler depuis une tache planifiee.
+$ServerLaunchers = @(
+    @{ Name    = 'CircusVOIP-Servers'
+       Title   = 'CircusVOIP - Serveurs'
+       Scripts = @('circusvoip_server.py', 'circusvoip_audio_server.py') },
+    @{ Name    = 'CircusVOIP-Positions'
+       Title   = 'CircusVOIP - Serveur de positions'
+       Scripts = @('circusvoip_server.py') },
+    @{ Name    = 'CircusVOIP-Audio'
+       Title   = 'CircusVOIP - Serveur audio'
+       Scripts = @('circusvoip_audio_server.py') }
 )
 
 # Assets optionnels : le code a un fallback silencieux pour chacun (icone
@@ -619,8 +661,7 @@ function Install-QtDep {
 
 function Optimize-Runtime {
     param(
-        [Parameter(Mandatory = $true)][string]$RuntimeDir,
-        [switch]$DropTk
+        [Parameter(Mandatory = $true)][string]$RuntimeDir
     )
     if ($SkipPrune) {
         Write-Note 'Pruning desactive (-SkipPrune).'
@@ -652,10 +693,10 @@ function Optimize-Runtime {
         'Lib\site-packages\PySide6\lrelease.exe',
         'Lib\site-packages\shiboken6\include'
     )
-    if ($DropTk) {
-        # Le client n'importe jamais tkinter (le serveur, si). ~12 Mo.
-        $targets += @('Lib\tkinter', 'DLLs\_tkinter.pyd', 'DLLs\tcl86t.dll', 'DLLs\tk86t.dll', 'tcl')
-    }
+    # tkinter (~12 Mo) etait elague cote client, qui ne l'importe pas : son
+    # interface est en Qt. Il est desormais conserve dans les deux runtimes,
+    # parce que le client embarque aussi la console d'administration
+    # (circusvoip_admin.py), et celle-la est en tkinter.
 
     foreach ($rel in $targets) {
         $full = Join-Path $RuntimeDir $rel
@@ -694,6 +735,8 @@ function New-AppPayload {
         [Parameter(Mandatory = $true)][string]$AppDir,
         [Parameter(Mandatory = $true)][string[]]$Modules,
         [Parameter(Mandatory = $true)]$VersionInfo,
+        # Modules venant d'un autre dossier du depot : @{ From = 'server'; File = '...' }
+        [array]$ExtraModules = @(),
         [switch]$IsClient
     )
     if (Test-Path -LiteralPath $AppDir) { Remove-Item -LiteralPath $AppDir -Recurse -Force }
@@ -702,7 +745,20 @@ function New-AppPayload {
     foreach ($m in $Modules) {
         Copy-Item -LiteralPath (Join-Path $SourceDir $m) -Destination $AppDir -Force
     }
-    Write-Note "$($Modules.Count) module(s) .py stage(s)."
+    $count = $Modules.Count
+    foreach ($x in $ExtraModules) {
+        $src = Join-Path (Join-Path $RepoRoot $x.From) $x.File
+        # Deja valide par Test-SourceTree cote appelant ; on reverifie parce
+        # qu'un chemin inter-dossiers est le genre de chose qui casse en
+        # silence quand l'arbre bouge.
+        if (-not (Test-Path -LiteralPath $src)) {
+            throw "Module attendu depuis $($x.From)\ introuvable : $src"
+        }
+        Copy-Item -LiteralPath $src -Destination $AppDir -Force
+        Write-Note "$($x.File) repris depuis $($x.From)\"
+        $count++
+    }
+    Write-Note "$count module(s) .py stage(s)."
 
     # circusvoip_version.json regenere depuis les valeurs resolues : c'est ce
     # fichier que le client lit pour le titre de fenetre et la comparaison de
@@ -746,7 +802,10 @@ function New-AppPayload {
 function Add-PlaceholderAssets {
     param(
         [Parameter(Mandatory = $true)][string]$AppDir,
-        [Parameter(Mandatory = $true)][string]$RuntimeDir
+        [Parameter(Mandatory = $true)][string]$RuntimeDir,
+        # Cote serveur, seule l'icone a un sens : pas de soundboard, donc pas
+        # de sounds\alarm.wav a generer.
+        [switch]$IconOnly
     )
     if ($NoPlaceholders) {
         Write-Note 'Placeholders desactives (-NoPlaceholders).'
@@ -758,7 +817,108 @@ function Add-PlaceholderAssets {
         return
     }
     $py = Join-Path $RuntimeDir 'python.exe'
-    Invoke-Native -FilePath $py -What 'make-placeholder-assets.py' -Arguments @($gen, $AppDir)
+    # Pas $args : c'est une variable automatique de PowerShell.
+    $genArgs = @($gen, $AppDir)
+    if ($IconOnly) { $genArgs += '--icon-only' }
+    Invoke-Native -FilePath $py -What 'make-placeholder-assets.py' -Arguments $genArgs
+}
+
+# ----------------------------------------------------------------------
+# 4bis. Lanceurs .exe
+# ----------------------------------------------------------------------
+
+function Resolve-Csc {
+    <#
+        Localise csc.exe, le compilateur C# du .NET Framework.
+
+        Il fait partie de Windows depuis la 8 (composant .NET Framework 4.x
+        installe d'office), y compris sur les runners windows-latest : compiler
+        les lanceurs n'ajoute donc aucune dependance de build. On ne cherche
+        PAS le csc.exe de Roslyn (SDK .NET moderne) : celui-ci produirait des
+        binaires exigeant un runtime .NET a part, la ou le Framework est deja
+        present sur toutes les machines cibles.
+    #>
+    $candidates = @(
+        (Join-Path $env:SystemRoot 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'),
+        (Join-Path $env:SystemRoot 'Microsoft.NET\Framework\v4.0.30319\csc.exe')
+    )
+    foreach ($c in $candidates) {
+        if (Test-Path -LiteralPath $c) { return $c }
+    }
+    throw @"
+csc.exe introuvable (compilateur C# du .NET Framework 4.x).
+
+Cherche dans :
+$(($candidates | ForEach-Object { "  - $_" }) -join "`n")
+
+Il est normalement livre avec Windows. Si le .NET Framework 4.x a ete retire,
+le reactiver depuis "Fonctionnalites de Windows".
+"@
+}
+
+function New-Launchers {
+    <#
+        Compile un .exe par entree de $ServerLaunchers dans <workDir>\bin\.
+
+        Chaque binaire est le meme code source (installer\launcher\
+        launcher-template.cs) avec la liste de scripts et le titre substitues.
+        Le chemin du runtime, lui, n'est PAS substitue : le lanceur le resout
+        a l'execution par rapport a sa propre position, donc l'installation
+        reste deplacable.
+    #>
+    param(
+        [Parameter(Mandatory = $true)][string]$BinDir,
+        [Parameter(Mandatory = $true)][array]$Launchers,
+        [string]$IconPath
+    )
+    $template = Join-Path $ScriptDir 'launcher\launcher-template.cs'
+    if (-not (Test-Path -LiteralPath $template)) {
+        throw "Modele de lanceur introuvable : $template"
+    }
+    $csc  = Resolve-Csc
+    Write-Note "csc : $csc"
+
+    if (Test-Path -LiteralPath $BinDir) { Remove-Item -LiteralPath $BinDir -Recurse -Force }
+    New-Dir $BinDir
+    $tmpDir = Join-Path $BinDir '_cs'
+    New-Dir $tmpDir
+
+    $source = Get-Content -LiteralPath $template -Raw
+
+    foreach ($l in $Launchers) {
+        # Litteraux C# : les noms de scripts sont des identifiants de fichiers
+        # du depot (pas d'entree utilisateur), mais on echappe quand meme les
+        # antislashs et les guillemets plutot que de le supposer.
+        $scriptsLiteral = (
+            $l.Scripts | ForEach-Object {
+                '"' + ($_ -replace '\\', '\\\\' -replace '"', '\"') + '"'
+            }
+        ) -join ', '
+        $code = $source.Replace('__SCRIPTS__', $scriptsLiteral).Replace('__TITLE__', $l.Title)
+
+        $cs = Join-Path $tmpDir "$($l.Name).cs"
+        [System.IO.File]::WriteAllText($cs, $code, (New-Object System.Text.UTF8Encoding($false)))
+
+        $exe = Join-Path $BinDir "$($l.Name).exe"
+        # winexe : sous-systeme GUI, donc aucune fenetre de console ne
+        # clignote au demarrage -- c'est tout l'interet par rapport a un .bat.
+        $cscArgs = @(
+            '/nologo', '/target:winexe', '/platform:anycpu', '/optimize+',
+            '/reference:System.dll', '/reference:System.Windows.Forms.dll',
+            "/out:$exe"
+        )
+        if ($IconPath -and (Test-Path -LiteralPath $IconPath)) {
+            $cscArgs += "/win32icon:$IconPath"
+        }
+        $cscArgs += $cs
+        Invoke-Native -FilePath $csc -What "csc ($($l.Name))" -Arguments $cscArgs
+        if (-not (Test-Path -LiteralPath $exe)) {
+            throw "Lanceur attendu absent apres compilation : $exe"
+        }
+        Write-Note "$($l.Name).exe -> $($l.Scripts -join ' + ')"
+    }
+
+    Remove-Item -LiteralPath $tmpDir -Recurse -Force
 }
 
 # ----------------------------------------------------------------------
@@ -910,13 +1070,26 @@ function Build-Component {
     $sourceDir = Join-Path $RepoRoot $Name
     $workDir   = Join-Path $WorkRoot $Name
     $appDir    = Join-Path $workDir 'app'
+    $binDir    = Join-Path $workDir 'bin'
     $runtime   = Join-Path $workDir 'runtime'
 
-    if ($isClient) { $modules = $ClientModules } else { $modules = $ServerModules }
+    if ($isClient) {
+        $modules = $ClientModules
+        $extras  = $ClientExtraModules
+    } else {
+        $modules = $ServerModules
+        $extras  = @()
+    }
 
     Write-Step "Build $Name : validation des sources"
     if (-not (Test-Path -LiteralPath $sourceDir)) { throw "Dossier source absent : $sourceDir" }
     Test-SourceTree -SourceDir $sourceDir -Modules $modules -Label $Name
+    # Les modules repris dans l'autre dossier sont valides la aussi : mieux
+    # vaut echouer ici, avec le message qui dit ou regarder, qu'a la copie.
+    foreach ($x in $extras) {
+        Test-SourceTree -SourceDir (Join-Path $RepoRoot $x.From) `
+            -Modules @($x.File) -Label $x.From
+    }
 
     $verInfo = Resolve-VersionInfo -SourceDir $sourceDir
     Write-Note "Version : $($verInfo.version) $($verInfo.channel) $('{0:d3}' -f $verInfo.build)"
@@ -953,13 +1126,19 @@ function Build-Component {
 
     Write-Step "Build $Name : payload app\"
     New-AppPayload -SourceDir $sourceDir -AppDir $appDir -Modules $modules `
-        -VersionInfo $verInfo -IsClient:$isClient
-    if ($isClient) {
-        Add-PlaceholderAssets -AppDir $appDir -RuntimeDir $runtime
+        -ExtraModules $extras -VersionInfo $verInfo -IsClient:$isClient
+    # L'icone sert aussi bien aux raccourcis et a l'installeur qu'aux lanceurs
+    # compiles ci-dessous, d'ou sa generation des deux cotes.
+    Add-PlaceholderAssets -AppDir $appDir -RuntimeDir $runtime -IconOnly:(-not $isClient)
+
+    if (-not $isClient) {
+        Write-Step "Build $Name : lanceurs .exe"
+        $icon = Join-Path $appDir 'StarCircus.ico'
+        New-Launchers -BinDir $binDir -Launchers $ServerLaunchers -IconPath $icon
     }
 
     Write-Step "Build $Name : nettoyage du runtime"
-    Optimize-Runtime -RuntimeDir $runtime -DropTk:$isClient
+    Optimize-Runtime -RuntimeDir $runtime
 
     Write-Step "Build $Name : compilation Inno Setup"
     $extraDefines = @()

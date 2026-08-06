@@ -30,6 +30,12 @@ Lancez l'installeur, le serveur démarre et génère un mot de passe
 automatiquement. Communiquez l'IP de la machine + le mot de passe aux
 joueurs.
 
+L'installeur pose les deux serveurs et trois raccourcis :
+`CircusVOIP-Servers.exe` ouvre les deux interfaces d'un coup,
+`CircusVOIP-Positions.exe` et `CircusVOIP-Audio.exe` permettent de n'en
+démarrer qu'une. La console d'administration, elle, est livrée avec
+l'installeur **client** : elle pilote le serveur à distance.
+
 ⚠️ **Ouvrir les ports 8888 et 8889 sur Internet expose le serveur aux
 scans automatiques.** Le code utilise un certificat TLS auto-signé
 généré au premier lancement (chiffrement actif par défaut), mais si tu
@@ -58,7 +64,7 @@ joueurs avec l'IP publique de la machine.
 Le certificat TLS (`cert.pem` et `key.pem`) est également généré
 automatiquement au premier lancement et réutilisé ensuite.
 
-### Avec Docker (serveur)
+### Avec Docker
 
 Le serveur peut être lancé en conteneurs Docker. Depuis `server/` :
 
@@ -273,6 +279,15 @@ Python n'est requis sur la machine du joueur.
 ```
 
 Le résultat atterrit dans `installer\out\`.
+
+Deux installeurs, mais la répartition n'est pas celle qu'on attendrait :
+
+- **client** — le client de jeu **et la console d'administration**. Celle-ci
+  administre un serveur *à distance*, sa place est donc sur le poste de
+  l'administrateur, pas sur la machine qui héberge les serveurs ;
+- **serveur** — les deux serveurs (positions 8888 et audio 8889) ensemble,
+  avec trois exécutables : `CircusVOIP-Servers.exe` les démarre d'un coup,
+  `CircusVOIP-Positions.exe` et `CircusVOIP-Audio.exe` chacun le sien.
 
 Le build tourne aussi sur GitHub Actions : pousser un tag `client-v*` ou
 `server-v*` construit l'installeur correspondant, le teste, et l'attache à la

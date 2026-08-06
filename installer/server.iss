@@ -9,6 +9,19 @@
 ;  (TLS auto-signe), circusvoip_channels.json, circusvoip_profiles.json,
 ;  circusvoip_admin_token.json. D'ou l'installation dans {localappdata}.
 ;
+;  Les deux serveurs (positions 8888 et audio 8889) sont livres ensemble et
+;  demarres par de vrais executables, poses a la racine de l'installation :
+;
+;      CircusVOIP-Servers.exe     les deux interfaces d'un coup
+;      CircusVOIP-Positions.exe   positions seul
+;      CircusVOIP-Audio.exe       audio seul
+;
+;  Ils sont compiles au build par installer\build-installer.ps1 (voir
+;  installer\launcher\launcher-template.cs pour le pourquoi du comment).
+;
+;  La console d'administration n'est PAS ici : elle administre un serveur a
+;  distance et est livree avec le CLIENT (cf. client.iss).
+;
 ;  Ports a ouvrir dans le pare-feu : 8888 (positions), 8889 (audio) et
 ;  eventuellement 8080 (serveur de mise a jour).
 ; ======================================================================
@@ -92,24 +105,43 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 [Files]
 Source: "{#PayloadDir}\app\*"; DestDir: "{app}\app"; Flags: recursesubdirs createallsubdirs ignoreversion
 Source: "{#PayloadDir}\runtime\*"; DestDir: "{app}\runtime"; Flags: recursesubdirs createallsubdirs ignoreversion
+; Lanceurs compiles. A la RACINE de l'installation, pas dans un bin\ : chacun
+; resout runtime\ et app\ relativement a sa propre position.
+Source: "{#PayloadDir}\bin\*.exe"; DestDir: "{app}"; Flags: ignoreversion
+
+[InstallDelete]
+; Les versions precedentes de l'installeur serveur livraient la console
+; d'administration. Elle est passee cote client : sans ca, une mise a jour
+; laisserait un circusvoip_admin.py orphelin -- une copie figee qui ne serait
+; plus jamais mise a jour, mais que son ancien raccourci lancerait encore.
+; Son fichier de config, lui, reste : l'utilisateur y a saisi son token.
+Type: files; Name: "{app}\app\circusvoip_admin.py"
+Type: files; Name: "{app}\app\__pycache__\circusvoip_admin.*.pyc"
+; Idem pour les raccourcis renommes ou supprimes : Inno ne nettoie pas ceux
+; d'une version precedente qui ne figurent plus dans [Icons].
+Type: files; Name: "{group}\Console admin.lnk"
+Type: files; Name: "{autodesktop}\CircusVOIP Serveur.lnk"
 
 [Icons]
-; Les deux services tournent dans deux process distincts : un raccourci chacun.
-Name: "{group}\Serveur positions (8888)"; Filename: "{app}\runtime\python.exe"; Parameters: """{app}\app\circusvoip_server.py"""; WorkingDir: "{app}\app"; IconFilename: "{#ShortcutIcon}"
-Name: "{group}\Serveur audio (8889)"; Filename: "{app}\runtime\python.exe"; Parameters: """{app}\app\circusvoip_audio_server.py"""; WorkingDir: "{app}\app"; IconFilename: "{#ShortcutIcon}"
-Name: "{group}\Console admin"; Filename: "{app}\runtime\python.exe"; Parameters: """{app}\app\circusvoip_admin.py"""; WorkingDir: "{app}\app"; IconFilename: "{#ShortcutIcon}"
+; Les raccourcis pointent sur les lanceurs, pas sur python.exe : le premier
+; demarre les deux serveurs d'un coup, et tous trois passent par pythonw.exe,
+; donc sans fenetre de console derriere l'interface.
+Name: "{group}\Serveurs CircusVOIP (positions + audio)"; Filename: "{app}\CircusVOIP-Servers.exe"; WorkingDir: "{app}"
+Name: "{group}\Serveur positions (8888)"; Filename: "{app}\CircusVOIP-Positions.exe"; WorkingDir: "{app}"
+Name: "{group}\Serveur audio (8889)"; Filename: "{app}\CircusVOIP-Audio.exe"; WorkingDir: "{app}"
+; Le serveur de mise a jour reste un raccourci vers python.exe : c'est un
+; service HTTP optionnel sans interface, sa sortie console EST son journal.
 Name: "{group}\Serveur de mise a jour (8080)"; Filename: "{app}\runtime\python.exe"; Parameters: """{app}\app\circusvoip_update_server.py"""; WorkingDir: "{app}\app"; IconFilename: "{#ShortcutIcon}"
 Name: "{group}\Dossier d'installation"; Filename: "{app}\app"
 Name: "{group}\{cm:UninstallProgram,{#AppName}}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\CircusVOIP Serveur"; Filename: "{app}\runtime\python.exe"; Parameters: """{app}\app\circusvoip_server.py"""; WorkingDir: "{app}\app"; IconFilename: "{#ShortcutIcon}"; Tasks: desktopicon
+Name: "{autodesktop}\Serveurs CircusVOIP"; Filename: "{app}\CircusVOIP-Servers.exe"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]
 ; Pas de regle pare-feu posee ici : l'installeur tourne sans elevation
 ; (PrivilegesRequired=lowest) et netsh advfirewall exige des droits admin.
 ; Au premier demarrage, Windows affiche lui-meme sa demande d'autorisation
 ; pour python.exe ; sinon voir installer\README.md pour les commandes netsh.
-Filename: "{app}\runtime\python.exe"; Parameters: """{app}\app\circusvoip_server.py"""; WorkingDir: "{app}\app"; Description: "Demarrer le serveur de positions (genere le mot de passe)"; Flags: postinstall skipifsilent nowait
-Filename: "{app}\runtime\python.exe"; Parameters: """{app}\app\circusvoip_audio_server.py"""; WorkingDir: "{app}\app"; Description: "Demarrer le serveur audio"; Flags: postinstall skipifsilent nowait unchecked
+Filename: "{app}\CircusVOIP-Servers.exe"; WorkingDir: "{app}"; Description: "Demarrer les deux serveurs (le mot de passe est genere au premier lancement)"; Flags: postinstall skipifsilent nowait
 
 [UninstallDelete]
 ; Runtime supprime en entier (rien d'utilisateur dedans, et il accumule des

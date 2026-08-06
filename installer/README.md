@@ -21,6 +21,7 @@ l'installateur Inno Setup, `[Files]` embarque `app/*` récursivement ») et
 │   ├── circusvoip_sc_ocr.py
 │   ├── circusvoip_security.py
 │   ├── circusvoip_audio_rx_logger.py
+│   ├── circusvoip_admin.py         console d'admin (vient de server\)
 │   ├── circusvoip_version.json     version affichée + comparée au serveur
 │   ├── StarCircus.ico
 │   ├── sounds\alarm.wav, ...
@@ -36,6 +37,67 @@ Le raccourci du menu Démarrer lance
 `runtime\pythonw.exe "app\circusvoip_client.py"`. Aucun Python système n'est
 requis sur la machine du joueur.
 
+### Répartition client / serveur
+
+Trois interfaces graphiques cohabitent dans le dépôt, et elles ne s'installent
+pas au même endroit :
+
+| Interface | Source | Installeur | Pourquoi |
+|---|---|---|---|
+| Client de jeu | `client\circusvoip_client.py` | client | — |
+| **Console d'administration** | `server\circusvoip_admin.py` | **client** | elle administre un serveur **à distance** (`wss://…:8888` + token admin) : sa place est sur le poste de l'administrateur |
+| Serveur de positions (8888) | `server\circusvoip_server.py` | serveur | |
+| Serveur audio (8889) | `server\circusvoip_audio_server.py` | serveur | |
+
+La console d'administration vit dans `server\` parce qu'elle parle le
+protocole d'administration du serveur, mais la machine qui héberge les
+serveurs est le plus souvent un VPS ou un `docker compose` — sans session
+graphique pour y afficher quoi que ce soit. Elle est donc **livrée avec le
+client**, où ses dépendances (websockets, tkinter, `circusvoip_security`) sont
+déjà présentes.
+
+Conséquence côté runtime : `tkinter` n'est plus élagué du runtime client
+(l'interface du client est en Qt, celle de la console en Tk). Coût : ~12 Mo
+non compressés, ~2,7 Mo sur la taille de l'installeur.
+
+### Installation serveur : les lanceurs
+
+L'installeur serveur livre les **deux** serveurs et pose trois exécutables à la
+racine de l'installation :
+
+```
+<InstallDir>\                       %LOCALAPPDATA%\CircusVOIP-Server par défaut
+├── CircusVOIP-Servers.exe          démarre les DEUX interfaces d'un coup
+├── CircusVOIP-Positions.exe        positions (8888) seul
+├── CircusVOIP-Audio.exe            audio (8889) seul
+├── app\
+└── runtime\
+```
+
+Ce sont de vrais binaires, compilés au build à partir de
+[`launcher\launcher-template.cs`](launcher/launcher-template.cs) par `csc.exe`,
+le compilateur C# du .NET Framework — livré avec Windows, donc aucune
+dépendance de build en plus, ni en local ni sur les runners GitHub.
+
+Un raccourci vers `pythonw.exe` aurait suffi pour lancer *un* serveur, mais pas
+pour en lancer deux, et un `.lnk` ne se copie ni ne s'appelle depuis une tâche
+planifiée. Chaque lanceur résout `runtime\` et `app\` **relativement à sa
+propre position** : l'installation reste déplaçable. Les arguments sont
+transmis tels quels, et `--headless` bascule sur `python.exe` (console
+visible) puisque c'est justement le mode où le serveur n'a plus d'interface et
+n'écrit que sur la sortie standard :
+
+```powershell
+.\CircusVOIP-Positions.exe --headless
+```
+
+Ce que les lanceurs ne font **pas** : renommer le processus. Ils démarrent
+`pythonw.exe` et rendent la main ; dans le gestionnaire de tâches, les deux
+serveurs restent deux `pythonw.exe` indiscernables.
+
+Le serveur de mise à jour (8080) reste un simple raccourci vers `python.exe` :
+c'est un service HTTP sans interface, sa sortie console **est** son journal.
+
 **L'installation se fait dans `%LOCALAPPDATA%`, pas dans `Program Files`.** Le
 client écrit sa configuration, ses conversations CircusPhone *et ses mises à
 jour auto-appliquées* dans `app\` : sous `Program Files`, ces écritures
@@ -46,8 +108,9 @@ prévient si un chemin sous `Program Files` est choisi malgré tout.
 
 | Outil | Version | Notes |
 |---|---|---|
-| Windows | 10 / 11 x64 | `curl.exe` et `tar.exe` fournis par l'OS |
+| Windows | 10 / 11 x64 | `curl.exe`, `tar.exe` et `csc.exe` fournis par l'OS |
 | PowerShell | 5.1+ | celui de Windows suffit |
+| .NET Framework | 4.x | déjà présent sur Windows 8+ ; fournit le `csc.exe` qui compile les lanceurs serveur |
 | Inno Setup | **6.3+** | pour `ArchitecturesAllowed=x64compatible` ; valide avec 6.7.3. Un Inno Setup 7 deja installe est detecte et utilise |
 | Espace disque | ~3 Go | ~15 Go pour `-Deps full` |
 
@@ -91,7 +154,7 @@ compression LZMA.
 
 | `-Deps` | Contenu | Taille installeur | Premier lancement |
 |---|---|---|---|
-| `bundled` (défaut) | PySide6-Essentials, numpy, opencv-headless, mss, sounddevice, pynput, psutil, cryptography, Pillow + optionnels | **104 Mo** (478 Mo installés) | télécharge le moteur OCR (243 Mo en CPU) |
+| `bundled` (défaut) | PySide6-Essentials, numpy, opencv-headless, mss, sounddevice, pynput, psutil, cryptography, Pillow + optionnels | **107 Mo** (481 Mo installés) | télécharge le moteur OCR (243 Mo en CPU) |
 | `full` | idem + moteur OCR selon `-OcrBackend` | +243 Mo (CPU) ou +2 Go (CUDA) | rien à télécharger |
 | `none` | runtime nu | **23 Mo** | télécharge tout |
 
@@ -205,8 +268,10 @@ C'est aussi le moyen de valider le workflow **avant** de le merger :
 sur la branche par défaut, donc le bouton *Run workflow* n'existe pas tant que
 la PR n'est pas mergée.
 
-> Le smoke test ne couvre que le client. L'installeur serveur est construit et
-> publié en artefact, mais rien ne vérifie encore son contenu.
+> Le smoke test ne couvre que le client — il y vérifie aussi la présence de
+> `circusvoip_admin.py` et l'import de `tkinter`. L'installeur serveur est
+> construit et publié en artefact, mais rien ne vérifie encore son contenu ni
+> ses lanceurs.
 
 Le tag fait foi sur le numéro de version, pas `circusvoip_version.json` : ce
 fichier est régulièrement en retard (côté serveur il est resté en 0.1.1 alors
@@ -286,8 +351,9 @@ derrière elle. Le lanceur détermine tout :
 
 | Lanceur | Console | Où c'est utilisé |
 |---|---|---|
-| `runtime\pythonw.exe` | non | raccourcis menu Démarrer et Bureau, lancement en fin d'installation |
+| `runtime\pythonw.exe` | non | raccourcis menu Démarrer et Bureau, console d'administration, lancement en fin d'installation |
 | `runtime\python.exe` | oui | raccourci « console de diagnostic » (tâche optionnelle, décochée), téléchargement du moteur OCR |
+| `CircusVOIP-*.exe` (serveur) | non | compilés en sous-système GUI (`/target:winexe`), ils passent par `pythonw.exe` — sauf avec `--headless`, où ils basculent sur `python.exe` |
 
 Le client s'accommode très bien de l'absence de console : avec `pythonw`,
 `sys.stdout` vaut `None` et `print()` devient un no-op silencieux côté CPython
@@ -368,6 +434,10 @@ supprimés dans l'arbre de travail sans l'être dans le dépôt :
 git restore client/
 ```
 
+La validation couvre aussi les modules repris dans l'autre dossier
+(`server\circusvoip_admin.py` pour le client) : le build échoue avant la copie,
+avec le nom du dossier où regarder.
+
 ### Mise à jour vs updater intégré
 
 Deux mécanismes coexistent, indépendants :
@@ -435,7 +505,7 @@ La chaîne a été exécutée de bout en bout sur Windows 11 x64 avec Inno Setup
 - import des 13 dépendances embarquées dans le runtime installé, y compris la
   création d'une `QApplication` (le plugin de plateforme Qt survit à
   l'élagage) ;
-- `py_compile` des 6 modules client sous CPython 3.12 ;
+- `py_compile` des 7 modules client sous CPython 3.12 ;
 - **lancement réel du client installé** : bootstrap pip satisfait en 10 ms
   (aucun téléchargement), fenêtre visible en 0,9 s, rien sur `stderr` ;
 - désinstallation : `runtime\` entièrement supprimé (y compris les paquets
@@ -446,6 +516,29 @@ La chaîne a été exécutée de bout en bout sur Windows 11 x64 avec Inno Setup
   exacte du bootstrap client (`pip install --upgrade easyocr`) résout ensuite
   `torch 2.13.0+cu130` ou `torch 2.13.0+cpu` selon le choix.
 
+Les lanceurs et la nouvelle répartition client / serveur ont été vérifiés de la
+même façon :
+
+- installation silencieuse de l'installeur serveur (27,9 Mo), puis lancement
+  des trois exécutables :
+  `CircusVOIP-Servers.exe` ouvre bien **deux** fenêtres
+  (« CircusVOIP — Serveur » et « CircusVOIP - Audio Server »),
+  `CircusVOIP-Positions.exe` et `CircusVOIP-Audio.exe` une seule chacun ;
+- aucune fenêtre de console dans les trois cas, et le port 8889 passe bien en
+  écoute ;
+- `CircusVOIP-Positions.exe --headless` bascule bien sur `python.exe`, aucun
+  `pythonw.exe` lancé, port 8888 en écoute : l'argument est transmis ;
+- payload serveur conforme — plus de `circusvoip_admin.py`, et un
+  `[InstallDelete]` retire la copie orpheline laissée par les versions
+  précédentes de l'installeur ;
+- désinstallation serveur : les trois lanceurs et `runtime\` supprimés, seuls
+  les secrets et l'état généré à l'exécution (`cert.pem`, `key.pem`,
+  `circusvoip_server_config.json`, `circusvoip_admin_token.json`) restent —
+  volontairement ;
+- côté client, `circusvoip_admin.py` est bien embarqué, `tkinter` importable
+  dans le runtime élagué, et la console d'administration démarre depuis le
+  payload (fenêtre « CircusVOIP - Admin »).
+
 Un installeur client (0.2.0, `bundled`) et un installeur serveur déjà
 construits se trouvent dans `out\`. Ils ont été produits depuis les sources de
 `HEAD`, pas depuis l'arbre de travail.
@@ -454,9 +547,10 @@ construits se trouvent dans `out\`. Ils ont été produits depuis les sources de
 
 | Fichier | Rôle |
 |---|---|
-| `build-installer.ps1` | orchestration : runtime, pip, staging, ISCC |
-| `client.iss` | script Inno Setup du client |
-| `server.iss` | script Inno Setup du serveur |
+| `build-installer.ps1` | orchestration : runtime, pip, staging, lanceurs, ISCC |
+| `client.iss` | script Inno Setup du client (+ console d'administration) |
+| `server.iss` | script Inno Setup du serveur (les deux serveurs) |
+| `launcher\launcher-template.cs` | modèle des lanceurs `CircusVOIP-*.exe`, compilé par `csc.exe` |
 | `make-placeholder-assets.py` | génère les assets binaires manquants |
 | `smoke-test.py` | valide une installation (fichiers, imports, Qt, pip) |
 | `.cache\` | runtime PBS et installeur Inno téléchargés (non versionné) |

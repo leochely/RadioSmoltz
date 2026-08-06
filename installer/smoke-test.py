@@ -38,6 +38,10 @@ REQUIRED_FILES = [
     r"app\circusvoip_sc_ocr.py",
     r"app\circusvoip_security.py",
     r"app\circusvoip_audio_rx_logger.py",
+    # Console d'administration : vient de server\ dans le depot, mais est
+    # livree avec le client (cf. client.iss). Un oubli du build ne se verrait
+    # qu'au clic sur son raccourci.
+    r"app\circusvoip_admin.py",
     r"app\circusvoip_version.json",
 ]
 
@@ -45,6 +49,9 @@ REQUIRED_MODULES = [
     "PySide6.QtWidgets", "PySide6.QtGui", "PySide6.QtCore",
     "numpy", "cv2", "mss", "pynput", "psutil",
     "websockets", "cryptography", "PIL.Image",
+    # Interface de la console d'administration. Le runtime ne l'elague plus
+    # depuis qu'elle est livree avec le client.
+    "tkinter",
 ]
 
 OPTIONAL_MODULES = ["sounddevice", "pytesseract", "pynvml", "bettercam"]
