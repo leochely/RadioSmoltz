@@ -80,7 +80,15 @@ jobs:
           $ocr       = "${{ github.event.inputs.ocr }}"
 
           if (-not $component) {
-            if ($isTag -and $tag -like 'server-v*') { $component = 'server' } else { $component = 'client' }
+            if ($isTag) {
+              # Un tag ne publie qu'un composant : celui de son prefixe.
+              if ($tag -like 'server-v*') { $component = 'server' } else { $component = 'client' }
+            } else {
+              # PR ou dispatch sans choix : on construit les deux, et les deux
+              # .exe partent en artefact. Sinon une PR touchant server/
+              # declencherait un build client qui ne prouve rien.
+              $component = 'both'
+            }
           }
           if (-not $deps) { $deps = 'bundled' }
           if (-not $ocr)  { $ocr  = 'cpu' }

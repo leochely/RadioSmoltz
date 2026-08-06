@@ -192,12 +192,21 @@ choix du composant et du niveau de dépendances. Les installeurs sont alors
 récupérables en artefact (14 jours).
 
 **Sur pull request** touchant `installer/`, `client/`, `server/` ou le workflow
-lui-même : build + smoke test, sans rien publier (l'étape de release est
-conditionnée au tag). C'est le moyen de valider le workflow **avant** de le
-merger : `workflow_dispatch` n'apparaît dans l'interface qu'une fois le fichier
-présent sur la branche par défaut, donc le bouton *Run workflow* n'existe pas
-tant que la PR n'est pas mergée. Le `.exe` produit reste téléchargeable depuis
-la page du run, en artefact.
+lui-même : build **des deux composants** + smoke test, sans rien publier
+(l'étape de release est conditionnée au tag). Les deux `.exe` et leur
+`SHA256SUMS.txt` sont téléchargeables en artefact depuis la page du run.
+
+Les deux, parce que `server/` est dans le filtre de chemins : ne construire que
+le client ferait tourner quinze minutes de CI sans rien dire de la modification.
+Un tag, lui, ne publie que le composant de son préfixe.
+
+C'est aussi le moyen de valider le workflow **avant** de le merger :
+`workflow_dispatch` n'apparaît dans l'interface qu'une fois le fichier présent
+sur la branche par défaut, donc le bouton *Run workflow* n'existe pas tant que
+la PR n'est pas mergée.
+
+> Le smoke test ne couvre que le client. L'installeur serveur est construit et
+> publié en artefact, mais rien ne vérifie encore son contenu.
 
 Le tag fait foi sur le numéro de version, pas `circusvoip_version.json` : ce
 fichier est régulièrement en retard (côté serveur il est resté en 0.1.1 alors
