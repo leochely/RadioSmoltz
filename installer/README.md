@@ -191,6 +191,14 @@ git tag client-v0.2.1 && git push origin client-v0.2.1
 choix du composant et du niveau de dépendances. Les installeurs sont alors
 récupérables en artefact (14 jours).
 
+**Sur pull request** touchant `installer/`, `client/`, `server/` ou le workflow
+lui-même : build + smoke test, sans rien publier (l'étape de release est
+conditionnée au tag). C'est le moyen de valider le workflow **avant** de le
+merger : `workflow_dispatch` n'apparaît dans l'interface qu'une fois le fichier
+présent sur la branche par défaut, donc le bouton *Run workflow* n'existe pas
+tant que la PR n'est pas mergée. Le `.exe` produit reste téléchargeable depuis
+la page du run, en artefact.
+
 Le tag fait foi sur le numéro de version, pas `circusvoip_version.json` : ce
 fichier est régulièrement en retard (côté serveur il est resté en 0.1.1 alors
 que la release publiée est en 0.3.0). Un tag qui ne correspond pas au motif

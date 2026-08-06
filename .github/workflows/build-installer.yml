@@ -4,6 +4,10 @@ name: build-installer
 #
 # - push d'un tag client-v* / server-v* : build, smoke test, puis attachement
 #   des .exe a la release correspondante ;
+# - pull request touchant la chaine ou les sources : build + smoke test, sans
+#   rien publier (l'etape de release est conditionnee au tag). C'est le moyen
+#   de valider le workflow AVANT de le merger : workflow_dispatch n'apparait
+#   dans l'UI qu'une fois le fichier present sur la branche par defaut ;
 # - workflow_dispatch : build a la demande, recuperable en artefact.
 #
 # L'image windows-latest fournit deja Inno Setup 6 (6.7.1 au moment de
@@ -22,6 +26,16 @@ on:
     tags:
       - 'client-v*'
       - 'server-v*'
+  # Filtre de chemins : un build Windows complet prend une quinzaine de
+  # minutes, inutile de le declencher sur une PR qui ne touche que la doc.
+  # client/ et server/ sont inclus a dessein : c'est justement une source
+  # cassee ou un module oublie que le smoke test attrape.
+  pull_request:
+    paths:
+      - 'installer/**'
+      - '.github/workflows/build-installer.yml'
+      - 'client/**'
+      - 'server/**'
   workflow_dispatch:
     inputs:
       component:
