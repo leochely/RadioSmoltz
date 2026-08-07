@@ -324,8 +324,38 @@ installeurs produits ne sont pas signés — voir plus bas.
 client synthétise ses propres motifs quand ils manquent
 (`_synth_phone_*_pattern`), ce qui vaut mieux qu'un placeholder.
 
-Pour utiliser les vrais assets, les déposer dans `client\StarCircus.ico` et
-`client\sounds\` : le script les copie tels quels et ne les écrase jamais.
+#### Utiliser ses propres assets
+
+Il suffit de les déposer dans l'arbre de travail : rien n'est jamais écrasé,
+le placeholder n'est généré que si le fichier manque.
+
+| Ce que vous déposez | Utilisé par |
+|---|---|
+| `client\StarCircus.ico` | le client **et**, à défaut d'icône propre, le serveur |
+| `server\StarCircus.ico` | le serveur seul (prioritaire sur celle du client) |
+| `client\sounds\*.wav` | le client (`alarm.wav`, `ring.wav`, `dial.wav`, `notif.wav`) |
+
+Une seule icône dans `client\` suffit donc à habiller les deux installeurs.
+Elle sert à quatre choses : icône des fenêtres, des raccourcis, de
+l'installeur lui-même (`SetupIconFile`) et des lanceurs serveur, ces derniers
+la recevant via `/win32icon` au moment de la compilation.
+
+Le format doit être un vrai `.ico` — un `.png` renommé ne passera pas
+`/win32icon`. Prévoir plusieurs tailles dans le fichier (16, 32, 48, 256), le
+256 étant celui qu'affichent l'explorateur en grandes icônes et la boîte de
+dialogue de l'installeur. Pour convertir depuis un PNG :
+
+```powershell
+magick convert logo.png -define icon:auto-resize=256,48,32,16 client\StarCircus.ico
+```
+
+Les `.ico` ne sont pas dans `.gitignore` (contrairement à `client/sounds/`) :
+une icône déposée là est versionnable, et tous les builds — y compris ceux de
+GitHub Actions — l'utiliseront. Sans ça, la CI reproduit le placeholder.
+
+Après changement d'icône, rebuilder avec `-Clean` n'est pas nécessaire, mais
+les lanceurs serveur doivent être recompilés : ils le sont à chaque build, donc
+un simple `-Component server` suffit.
 
 ### La suppression de bruit (pyrnnoise) n'est pas embarquée
 

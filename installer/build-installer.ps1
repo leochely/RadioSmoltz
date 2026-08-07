@@ -217,12 +217,11 @@ $ServerLaunchers = @(
        Scripts = @('circusvoip_audio_server.py') }
 )
 
-# Assets optionnels : le code a un fallback silencieux pour chacun (icone
-# ignoree si absente, sonneries telephone synthetisees si les wav manquent),
-# sauf alarm.wav dont le soundboard n'a pas de fallback.
-$ClientAssets = @(
-    'StarCircus.ico'
-)
+# Assets optionnels : le code a un fallback silencieux pour chacun (sonneries
+# telephone synthetisees si les wav manquent), sauf alarm.wav dont le
+# soundboard n'a pas de fallback.
+# L'icone n'est pas listee ici : elle est reprise pour les deux composants,
+# cf. New-AppPayload.
 $ClientSounds = @(
     'ring.wav',      # sonnerie destinataire  (fallback synth)
     'dial.wav',      # tonalite appelant      (fallback synth)
@@ -776,14 +775,24 @@ function New-AppPayload {
         (New-Object System.Text.UTF8Encoding($false))
     )
 
-    if (-not $IsClient) { return }
-
-    foreach ($a in $ClientAssets) {
-        $src = Join-Path $SourceDir $a
-        if (Test-Path -LiteralPath $src) {
-            Copy-Item -LiteralPath $src -Destination $AppDir -Force
+    # L'icone concerne les DEUX composants : fenetres, raccourcis, icone de
+    # l'installeur lui-meme, et /win32icon des lanceurs serveur. Cote serveur
+    # on accepte une icone propre dans server\, sinon on reprend celle du
+    # client pour que les deux installeurs se ressemblent. Sans aucune des
+    # deux, Add-PlaceholderAssets genere la sienne.
+    $iconCandidates = @(Join-Path $SourceDir 'StarCircus.ico')
+    if (-not $IsClient) {
+        $iconCandidates += (Join-Path $RepoRoot 'client\StarCircus.ico')
+    }
+    foreach ($cand in $iconCandidates) {
+        if (Test-Path -LiteralPath $cand) {
+            Copy-Item -LiteralPath $cand -Destination (Join-Path $AppDir 'StarCircus.ico') -Force
+            Write-Note "Icone : $cand"
+            break
         }
     }
+
+    if (-not $IsClient) { return }
 
     $soundsSrc = Join-Path $SourceDir 'sounds'
     $soundsDst = Join-Path $AppDir 'sounds'
