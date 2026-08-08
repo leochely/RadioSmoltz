@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Construit les installeurs .exe Windows de CircusVOIP (client et/ou serveur).
+    Construit les installeurs .exe Windows de RadioSmoltz (client et/ou serveur).
 
 .DESCRIPTION
     Reproduit la chaine de packaging que le projet amont utilise mais qui n'est
@@ -11,29 +11,29 @@
       1. Validation de l'arbre de travail (les modules attendus sont presents).
       2. Telechargement + mise en cache d'un runtime python-build-standalone.
       3. pip install des dependances dans runtime\Lib\site-packages.
-      4. Staging du payload : app\ (sources + assets + circusvoip_version.json)
+      4. Staging du payload : app\ (sources + assets + radiosmoltz_version.json)
          et runtime\.
       4bis. Cote serveur uniquement : compilation des lanceurs bin\*.exe
          (cf. installer\launcher\launcher-template.cs).
       5. Compilation du .iss par ISCC.exe -> installer\out\*.exe
 
     Le layout d'installation produit est celui que le code client attend
-    (cf. circusvoip_audio_io.py : "app/sounds/<nom>.wav ... packaging par
-    l'installateur Inno Setup" et circusvoip_client.py : "_find_site_packages_dir
+    (cf. radiosmoltz_audio_io.py : "app/sounds/<nom>.wav ... packaging par
+    l'installateur Inno Setup" et radiosmoltz_client.py : "_find_site_packages_dir
     ... pour un PBS embarque, c'est typiquement runtime/Lib/site-packages/") :
 
-        <InstallDir>\app\circusvoip_client.py, sounds\, StarCircus.ico, ...
+        <InstallDir>\app\radiosmoltz_client.py, sounds\, RadioSmoltz.ico, ...
         <InstallDir>\runtime\python.exe, Lib\site-packages\...
 
     Cote serveur, s'y ajoutent les lanceurs, a la racine de l'installation :
 
-        <InstallDir>\CircusVOIP-Servers.exe     <- demarre les deux GUI
-        <InstallDir>\CircusVOIP-Positions.exe   <- port 8888 seul
-        <InstallDir>\CircusVOIP-Audio.exe       <- port 8889 seul
+        <InstallDir>\RadioSmoltz-Servers.exe     <- demarre les deux GUI
+        <InstallDir>\RadioSmoltz-Positions.exe   <- port 8888 seul
+        <InstallDir>\RadioSmoltz-Audio.exe       <- port 8889 seul
 
     Repartition client / serveur : les deux interfaces de serveur (positions
     et audio) vont dans l'installeur serveur, la console d'administration
-    (circusvoip_admin.py) part avec le CLIENT -- elle administre un serveur a
+    (radiosmoltz_admin.py) part avec le CLIENT -- elle administre un serveur a
     distance et n'a rien a faire sur la machine qui l'heberge.
 
 .PARAMETER Component
@@ -68,7 +68,7 @@
 
 .PARAMETER Version
     Force la version affichee (ex. 0.2.0). Par defaut, lue dans
-    client\circusvoip_version.json (resp. server\circusvoip_version.json).
+    client\radiosmoltz_version.json (resp. server\radiosmoltz_version.json).
 
 .PARAMETER Build
     Force le numero de build. Par defaut lu dans le meme fichier.
@@ -100,7 +100,7 @@
     outils Qt...). Utile pour diagnostiquer un import manquant.
 
 .PARAMETER NoPlaceholders
-    N'genere pas les assets manquants (StarCircus.ico, sounds\alarm.wav).
+    N'genere pas les assets manquants (RadioSmoltz.ico, sounds\alarm.wav).
 
 .EXAMPLE
     .\installer\build-installer.ps1
@@ -168,26 +168,26 @@ $InnoSetupApi = 'https://api.github.com/repos/jrsoftware/issrc/releases'
 $InnoSetupFallbackUrl = 'https://github.com/jrsoftware/issrc/releases/download/is-6_7_3/innosetup-6.7.3.exe'
 
 # Modules que l'installeur doit embarquer. Une absence est fatale : le client
-# les importe (circusvoip_security pour le TLS, circusvoip_audio_rx_logger pour
+# les importe (radiosmoltz_security pour le TLS, radiosmoltz_audio_rx_logger pour
 # le log audio RX) et une release amputee planterait chez les joueurs.
 $ClientModules = @(
-    'circusvoip_client.py',
-    'circusvoip_core.py',
-    'circusvoip_audio_io.py',
-    'circusvoip_sc_ocr.py',
-    'circusvoip_security.py',
-    'circusvoip_audio_rx_logger.py'
+    'radiosmoltz_client.py',
+    'radiosmoltz_core.py',
+    'radiosmoltz_audio_io.py',
+    'radiosmoltz_sc_ocr.py',
+    'radiosmoltz_security.py',
+    'radiosmoltz_audio_rx_logger.py'
 )
 
 $ServerModules = @(
-    'circusvoip_server.py',
-    'circusvoip_audio_server.py',
-    'circusvoip_security.py',
-    'circusvoip_server_config.py',
-    'circusvoip_update_server.py'
+    'radiosmoltz_server.py',
+    'radiosmoltz_audio_server.py',
+    'radiosmoltz_security.py',
+    'radiosmoltz_server_config.py',
+    'radiosmoltz_update_server.py'
 )
 
-# Modules pris dans l'AUTRE dossier source. circusvoip_admin.py vit dans
+# Modules pris dans l'AUTRE dossier source. radiosmoltz_admin.py vit dans
 # server\ parce qu'il parle le protocole d'administration du serveur, mais
 # c'est une console d'administration DISTANTE (wss:// vers le port 8888) :
 # elle a sa place sur le poste de l'administrateur, pas sur la machine qui
@@ -195,10 +195,10 @@ $ServerModules = @(
 # sans session graphique. On l'embarque donc avec le client.
 #
 # Ses dependances sont deja la cote client : websockets, tkinter (fourni par
-# le runtime, cf. Optimize-Runtime) et circusvoip_security, dont la copie
+# le runtime, cf. Optimize-Runtime) et radiosmoltz_security, dont la copie
 # client expose bien build_client_ssl_context_insecure().
 $ClientExtraModules = @(
-    @{ From = 'server'; File = 'circusvoip_admin.py' }
+    @{ From = 'server'; File = 'radiosmoltz_admin.py' }
 )
 
 # Lanceurs .exe compiles pour le serveur (cf. installer\launcher\, qui
@@ -206,15 +206,15 @@ $ClientExtraModules = @(
 # demarrer qu'un seul script, et n'est pas un fichier qu'on peut copier,
 # epingler ou appeler depuis une tache planifiee.
 $ServerLaunchers = @(
-    @{ Name    = 'CircusVOIP-Servers'
-       Title   = 'CircusVOIP - Serveurs'
-       Scripts = @('circusvoip_server.py', 'circusvoip_audio_server.py') },
-    @{ Name    = 'CircusVOIP-Positions'
-       Title   = 'CircusVOIP - Serveur de positions'
-       Scripts = @('circusvoip_server.py') },
-    @{ Name    = 'CircusVOIP-Audio'
-       Title   = 'CircusVOIP - Serveur audio'
-       Scripts = @('circusvoip_audio_server.py') }
+    @{ Name    = 'RadioSmoltz-Servers'
+       Title   = 'RadioSmoltz - Serveurs'
+       Scripts = @('radiosmoltz_server.py', 'radiosmoltz_audio_server.py') },
+    @{ Name    = 'RadioSmoltz-Positions'
+       Title   = 'RadioSmoltz - Serveur de positions'
+       Scripts = @('radiosmoltz_server.py') },
+    @{ Name    = 'RadioSmoltz-Audio'
+       Title   = 'RadioSmoltz - Serveur audio'
+       Scripts = @('radiosmoltz_audio_server.py') }
 )
 
 # Icones embarquees dans app\, par composant. Chaque application a la sienne :
@@ -230,14 +230,14 @@ $ServerLaunchers = @(
 # l'installeur (SetupIconFile), de l'entree "Applications installees" et, cote
 # serveur, celle qu'embarquent les lanceurs compiles.
 $ClientIcons = @(
-    @{ Name = 'StarCircus.ico'
-       Candidates = @('client\StarCircus.ico') },
-    @{ Name = 'StarCircusAdmin.ico'
-       Candidates = @('client\StarCircusAdmin.ico', 'client\StarCircus.ico') }
+    @{ Name = 'RadioSmoltz.ico'
+       Candidates = @('client\RadioSmoltz.ico') },
+    @{ Name = 'RadioSmoltzAdmin.ico'
+       Candidates = @('client\RadioSmoltzAdmin.ico', 'client\RadioSmoltz.ico') }
 )
 $ServerIcons = @(
-    @{ Name = 'StarCircusServer.ico'
-       Candidates = @('server\StarCircusServer.ico', 'client\StarCircus.ico') }
+    @{ Name = 'RadioSmoltzServer.ico'
+       Candidates = @('server\RadioSmoltzServer.ico', 'client\RadioSmoltz.ico') }
 )
 
 # Assets optionnels : le code a un fallback silencieux pour chacun (sonneries
@@ -477,7 +477,7 @@ function Resolve-VersionInfo {
     param([Parameter(Mandatory = $true)][string]$SourceDir)
 
     $info = [ordered]@{ version = '0.0.0'; channel = 'alpha'; build = 0 }
-    $file = Join-Path $SourceDir 'circusvoip_version.json'
+    $file = Join-Path $SourceDir 'radiosmoltz_version.json'
     if (Test-Path -LiteralPath $file) {
         $raw = Get-Content -LiteralPath $file -Raw -Encoding UTF8
         $json = $raw | ConvertFrom-Json
@@ -485,7 +485,7 @@ function Resolve-VersionInfo {
         if ($json.PSObject.Properties['channel']) { $info.channel = [string]$json.channel }
         if ($json.PSObject.Properties['build'])   { $info.build   = [int]$json.build }
     } else {
-        Write-Warn "circusvoip_version.json absent de $SourceDir : valeurs par defaut."
+        Write-Warn "radiosmoltz_version.json absent de $SourceDir : valeurs par defaut."
     }
 
     if ($Version)      { $info.version = $Version }
@@ -517,7 +517,7 @@ function Resolve-PbsAssetUrl {
     $pattern = "^cpython-$([regex]::Escape($Series))\.\d+\+\d+-x86_64-pc-windows-msvc-install_only\.tar\.gz$"
     try {
         $api = 'https://api.github.com/repos/astral-sh/python-build-standalone/releases/latest'
-        $rel = Invoke-RestMethod -Uri $api -Headers @{ 'User-Agent' = 'CircusVOIP-build' } -TimeoutSec 30
+        $rel = Invoke-RestMethod -Uri $api -Headers @{ 'User-Agent' = 'RadioSmoltz-build' } -TimeoutSec 30
         foreach ($asset in $rel.assets) {
             if ($asset.name -match $pattern) {
                 Write-Note "Runtime : $($asset.name) (release $($rel.tag_name))"
@@ -618,7 +618,7 @@ function Install-RuntimeDeps {
         [string]$MarkerValue
     )
     $py     = Join-Path $RuntimeDir 'python.exe'
-    $marker = Join-Path $RuntimeDir '.circusvoip-deps'
+    $marker = Join-Path $RuntimeDir '.radiosmoltz-deps'
     if (-not $MarkerValue) { $MarkerValue = $Tier }
 
     if (Test-Path -LiteralPath $marker) {
@@ -717,7 +717,7 @@ function Optimize-Runtime {
     # tkinter (~12 Mo) etait elague cote client, qui ne l'importe pas : son
     # interface est en Qt. Il est desormais conserve dans les deux runtimes,
     # parce que le client embarque aussi la console d'administration
-    # (circusvoip_admin.py), et celle-la est en tkinter.
+    # (radiosmoltz_admin.py), et celle-la est en tkinter.
 
     foreach ($rel in $targets) {
         $full = Join-Path $RuntimeDir $rel
@@ -781,7 +781,7 @@ function New-AppPayload {
     }
     Write-Note "$count module(s) .py stage(s)."
 
-    # circusvoip_version.json regenere depuis les valeurs resolues : c'est ce
+    # radiosmoltz_version.json regenere depuis les valeurs resolues : c'est ce
     # fichier que le client lit pour le titre de fenetre et la comparaison de
     # version avec le serveur d'update.
     $verJson = [ordered]@{
@@ -792,7 +792,7 @@ function New-AppPayload {
     # Pas de BOM : le lecteur cote client tolere utf-8-sig, mais autant rester
     # sur de l'UTF-8 nu.
     [System.IO.File]::WriteAllText(
-        (Join-Path $AppDir 'circusvoip_version.json'),
+        (Join-Path $AppDir 'radiosmoltz_version.json'),
         $verJson,
         (New-Object System.Text.UTF8Encoding($false))
     )
@@ -1036,7 +1036,7 @@ function Resolve-InnoSetupUrl {
     # Derniere release de la serie 6 (tags 'is-6_x_y', asset 'innosetup-6.x.y.exe').
     try {
         $releases = Invoke-RestMethod -Uri $InnoSetupApi `
-            -Headers @{ 'User-Agent' = 'CircusVOIP-build' } -TimeoutSec 30
+            -Headers @{ 'User-Agent' = 'RadioSmoltz-build' } -TimeoutSec 30
         foreach ($rel in $releases) {
             if ($rel.tag_name -notlike 'is-6_*') { continue }
             foreach ($asset in $rel.assets) {
@@ -1170,7 +1170,7 @@ function Build-Component {
         } else {
             $required = $ClientDepsRequired
             if ($tier -eq 'full') { $required = $required + $ClientDepsFull }
-            $marker = Join-Path $runtime '.circusvoip-deps'
+            $marker = Join-Path $runtime '.radiosmoltz-deps'
             $alreadyDone = $false
             if (Test-Path -LiteralPath $marker) {
                 $alreadyDone = ((Get-Content -LiteralPath $marker -Raw).Trim() -eq $markerVal)
@@ -1206,14 +1206,14 @@ function Build-Component {
     $extraDefines = @()
     if ($isClient) {
         $iss  = Join-Path $ScriptDir 'client.iss'
-        $base = "CircusVOIP_Client_Setup_v$($verInfo.version)"
+        $base = "RadioSmoltz_Client_Setup_v$($verInfo.version)"
         $tierLabel = $Deps
         $extraDefines += "/DOcrBackend=$OcrBackend"
         # Moteur OCR embarque -> l'installeur ne propose pas le choix.
         if ($Deps -eq 'full') { $extraDefines += '/DOcrBundled=1' }
     } else {
         $iss  = Join-Path $ScriptDir 'server.iss'
-        $base = "CircusVOIP_Server_Setup_v$($verInfo.version)"
+        $base = "RadioSmoltz_Server_Setup_v$($verInfo.version)"
         $tierLabel = 'server'
     }
     if ($verInfo.channel -ne 'stable') {
@@ -1235,7 +1235,7 @@ function Build-Component {
 # ----------------------------------------------------------------------
 
 Write-Host ''
-Write-Host 'CircusVOIP - build des installeurs Windows' -ForegroundColor White
+Write-Host 'RadioSmoltz - build des installeurs Windows' -ForegroundColor White
 Write-Note "Depot        : $RepoRoot"
 Write-Note "Composant(s) : $Component"
 Write-Note "Dependances  : $Deps"

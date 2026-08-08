@@ -1,20 +1,20 @@
 ; ======================================================================
-;  CircusVOIP - installeur serveur (Inno Setup 6)
+;  RadioSmoltz - installeur serveur (Inno Setup 6)
 ; ======================================================================
 ;  Compile par installer\build-installer.ps1 -Component server (ou both).
 ;
 ;  Meme principe que le client : runtime Python embarque dans runtime\,
 ;  sources dans app\. Le serveur genere au premier lancement, A COTE de ses
-;  sources : circusvoip_server_config.json (mot de passe), cert.pem/key.pem
-;  (TLS auto-signe), circusvoip_channels.json, circusvoip_profiles.json,
-;  circusvoip_admin_token.json. D'ou l'installation dans {localappdata}.
+;  sources : radiosmoltz_server_config.json (mot de passe), cert.pem/key.pem
+;  (TLS auto-signe), radiosmoltz_channels.json, radiosmoltz_profiles.json,
+;  radiosmoltz_admin_token.json. D'ou l'installation dans {localappdata}.
 ;
 ;  Les deux serveurs (positions 8888 et audio 8889) sont livres ensemble et
 ;  demarres par de vrais executables, poses a la racine de l'installation :
 ;
-;      CircusVOIP-Servers.exe     les deux interfaces d'un coup
-;      CircusVOIP-Positions.exe   positions seul
-;      CircusVOIP-Audio.exe       audio seul
+;      RadioSmoltz-Servers.exe     les deux interfaces d'un coup
+;      RadioSmoltz-Positions.exe   positions seul
+;      RadioSmoltz-Audio.exe       audio seul
 ;
 ;  Ils sont compiles au build par installer\build-installer.ps1 (voir
 ;  installer\launcher\launcher-template.cs pour le pourquoi du comment).
@@ -39,17 +39,17 @@
   #define OutDir "out"
 #endif
 #ifndef OutName
-  #define OutName "CircusVOIP_Server_Setup"
+  #define OutName "RadioSmoltz_Server_Setup"
 #endif
 
-#define AppName      "CircusVOIP Server"
+#define AppName      "RadioSmoltz Server"
 #define AppPublisher "Leix"
-#define AppUrl       "https://github.com/leochely/CircusVOIP"
+#define AppUrl       "https://github.com/leochely/RadioSmoltz"
 ; Nom depose par build-installer.ps1 ($ServerIcons) : le changer ici sans le
 ; changer la-bas ferait retomber les raccourcis sur l'icone de python.exe.
 ; C'est aussi cette icone qu'embarquent les trois lanceurs compiles, via le
 ; /win32icon de csc.exe.
-#define IconRelative "app\StarCircusServer.ico"
+#define IconRelative "app\RadioSmoltzServer.ico"
 #define HasIcon      FileExists(AddBackslash(PayloadDir) + IconRelative)
 
 #if HasIcon
@@ -73,8 +73,8 @@ AppPublisherURL={#AppUrl}
 AppSupportURL={#AppUrl}/issues
 AppUpdatesURL={#AppUrl}/releases
 
-DefaultDirName={localappdata}\CircusVOIP-Server
-DefaultGroupName=CircusVOIP Server
+DefaultDirName={localappdata}\RadioSmoltz-Server
+DefaultGroupName=RadioSmoltz Server
 DisableProgramGroupPage=yes
 AllowNoIcons=yes
 PrivilegesRequired=lowest
@@ -122,22 +122,22 @@ Source: "{#PayloadDir}\bin\*.exe"; DestDir: "{app}"; Flags: ignoreversion
 ; Les raccourcis pointent sur les lanceurs, pas sur python.exe : le premier
 ; demarre les deux serveurs d'un coup, et tous trois passent par pythonw.exe,
 ; donc sans fenetre de console derriere l'interface.
-Name: "{group}\Serveurs CircusVOIP (positions + audio)"; Filename: "{app}\CircusVOIP-Servers.exe"; WorkingDir: "{app}"
-Name: "{group}\Serveur positions (8888)"; Filename: "{app}\CircusVOIP-Positions.exe"; WorkingDir: "{app}"
-Name: "{group}\Serveur audio (8889)"; Filename: "{app}\CircusVOIP-Audio.exe"; WorkingDir: "{app}"
+Name: "{group}\Serveurs RadioSmoltz (positions + audio)"; Filename: "{app}\RadioSmoltz-Servers.exe"; WorkingDir: "{app}"
+Name: "{group}\Serveur positions (8888)"; Filename: "{app}\RadioSmoltz-Positions.exe"; WorkingDir: "{app}"
+Name: "{group}\Serveur audio (8889)"; Filename: "{app}\RadioSmoltz-Audio.exe"; WorkingDir: "{app}"
 ; Le serveur de mise a jour reste un raccourci vers python.exe : c'est un
 ; service HTTP optionnel sans interface, sa sortie console EST son journal.
-Name: "{group}\Serveur de mise a jour (8080)"; Filename: "{app}\runtime\python.exe"; Parameters: """{app}\app\circusvoip_update_server.py"""; WorkingDir: "{app}\app"; IconFilename: "{#ShortcutIcon}"
+Name: "{group}\Serveur de mise a jour (8080)"; Filename: "{app}\runtime\python.exe"; Parameters: """{app}\app\radiosmoltz_update_server.py"""; WorkingDir: "{app}\app"; IconFilename: "{#ShortcutIcon}"
 Name: "{group}\Dossier d'installation"; Filename: "{app}\app"
 Name: "{group}\{cm:UninstallProgram,{#AppName}}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\Serveurs CircusVOIP"; Filename: "{app}\CircusVOIP-Servers.exe"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{autodesktop}\Serveurs RadioSmoltz"; Filename: "{app}\RadioSmoltz-Servers.exe"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]
 ; Pas de regle pare-feu posee ici : l'installeur tourne sans elevation
 ; (PrivilegesRequired=lowest) et netsh advfirewall exige des droits admin.
 ; Au premier demarrage, Windows affiche lui-meme sa demande d'autorisation
 ; pour python.exe ; sinon voir installer\README.md pour les commandes netsh.
-Filename: "{app}\CircusVOIP-Servers.exe"; WorkingDir: "{app}"; Description: "Demarrer les deux serveurs (le mot de passe est genere au premier lancement)"; Flags: postinstall skipifsilent nowait
+Filename: "{app}\RadioSmoltz-Servers.exe"; WorkingDir: "{app}"; Description: "Demarrer les deux serveurs (le mot de passe est genere au premier lancement)"; Flags: postinstall skipifsilent nowait
 
 [UninstallDelete]
 ; Runtime supprime en entier (rien d'utilisateur dedans, et il accumule des
@@ -149,4 +149,4 @@ Type: filesandordirs; Name: "{app}\app\__pycache__"
 ; configures. A supprimer a la main pour repartir de zero.
 
 [Messages]
-french.WelcomeLabel2=Ceci va installer [name/ver] sur votre ordinateur.%n%nL'installeur embarque son propre Python : rien d'autre n'est requis.%n%nLe mot de passe d'acces est genere au premier demarrage dans circusvoip_server_config.json.
+french.WelcomeLabel2=Ceci va installer [name/ver] sur votre ordinateur.%n%nL'installeur embarque son propre Python : rien d'autre n'est requis.%n%nLe mot de passe d'acces est genere au premier demarrage dans radiosmoltz_server_config.json.

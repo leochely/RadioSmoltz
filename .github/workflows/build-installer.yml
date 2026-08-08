@@ -97,7 +97,7 @@ jobs:
           if ($isTag -and $tag -match '^(client|server)-v(\d+\.\d+(\.\d+)?)$') {
             $version = $Matches[2]
           } elseif ($isTag) {
-            Write-Host "::warning::Tag '$tag' non reconnu : version lue dans circusvoip_version.json."
+            Write-Host "::warning::Tag '$tag' non reconnu : version lue dans radiosmoltz_version.json."
           }
 
           "component=$component" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
@@ -155,8 +155,8 @@ jobs:
         if: steps.cfg.outputs.component != 'server'
         shell: pwsh
         run: |
-          $exe = Get-ChildItem installer\out\CircusVOIP_Client_Setup_*.exe | Select-Object -First 1
-          $dest = Join-Path $env:RUNNER_TEMP 'circusvoip-smoke'
+          $exe = Get-ChildItem installer\out\RadioSmoltz_Client_Setup_*.exe | Select-Object -First 1
+          $dest = Join-Path $env:RUNNER_TEMP 'radiosmoltz-smoke'
           Write-Host "Installation silencieuse de $($exe.Name) dans $dest"
           $p = Start-Process -FilePath $exe.FullName -Wait -PassThru -ArgumentList @(
             '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/NOICONS',
@@ -183,7 +183,7 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: circusvoip-installers-${{ steps.cfg.outputs.component }}
+          name: radiosmoltz-installers-${{ steps.cfg.outputs.component }}
           path: |
             installer/out/*.exe
             installer/out/SHA256SUMS.txt

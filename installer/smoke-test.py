@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Verifie une installation CircusVOIP client produite par l'installeur.
+"""Verifie une installation RadioSmoltz client produite par l'installeur.
 
 A executer AVEC LE RUNTIME EMBARQUE de l'installation a tester, pas avec un
 Python systeme -- c'est justement ce runtime qu'on veut valider :
@@ -8,7 +8,7 @@ Python systeme -- c'est justement ce runtime qu'on veut valider :
 
 Controles :
   1. presence des fichiers que les raccourcis et le code attendent ;
-  2. circusvoip_version.json lisible (tolerant au BOM, comme le client) ;
+  2. radiosmoltz_version.json lisible (tolerant au BOM, comme le client) ;
   3. compilation de toutes les sources embarquees par ce CPython ;
   4. import des dependances ;
   5. creation d'une QApplication (valide le plugin de plateforme Qt, que
@@ -20,7 +20,7 @@ ne font pas echouer : le client les enveloppe toutes dans un try/except, et
 sounddevice ouvre PortAudio des l'import, ce qui est peu fiable sur une VM
 sans carte son.
 
-N'importe PAS circusvoip_client : son bootstrap pip declencherait le
+N'importe PAS radiosmoltz_client : son bootstrap pip declencherait le
 telechargement d'easyocr + torch (~2 Go).
 """
 
@@ -32,17 +32,17 @@ from pathlib import Path
 REQUIRED_FILES = [
     r"runtime\python.exe",
     r"runtime\pythonw.exe",
-    r"app\circusvoip_client.py",
-    r"app\circusvoip_core.py",
-    r"app\circusvoip_audio_io.py",
-    r"app\circusvoip_sc_ocr.py",
-    r"app\circusvoip_security.py",
-    r"app\circusvoip_audio_rx_logger.py",
+    r"app\radiosmoltz_client.py",
+    r"app\radiosmoltz_core.py",
+    r"app\radiosmoltz_audio_io.py",
+    r"app\radiosmoltz_sc_ocr.py",
+    r"app\radiosmoltz_security.py",
+    r"app\radiosmoltz_audio_rx_logger.py",
     # Console d'administration : vient de server\ dans le depot, mais est
     # livree avec le client (cf. client.iss). Un oubli du build ne se verrait
     # qu'au clic sur son raccourci.
-    r"app\circusvoip_admin.py",
-    r"app\circusvoip_version.json",
+    r"app\radiosmoltz_admin.py",
+    r"app\radiosmoltz_version.json",
 ]
 
 REQUIRED_MODULES = [
@@ -87,13 +87,13 @@ def main() -> int:
     try:
         # utf-8-sig : meme tolerance que _load_version_info cote client.
         data = json.loads(
-            (root / "app" / "circusvoip_version.json").read_text(encoding="utf-8-sig")
+            (root / "app" / "radiosmoltz_version.json").read_text(encoding="utf-8-sig")
         )
-        check("circusvoip_version.json",
+        check("radiosmoltz_version.json",
               bool(data.get("version")),
               f"{data.get('version')} {data.get('channel')} {data.get('build')}")
     except Exception as e:
-        check("circusvoip_version.json", False, f"{type(e).__name__}: {e}")
+        check("radiosmoltz_version.json", False, f"{type(e).__name__}: {e}")
 
     print("\n[SMOKE] Compilation des sources embarquees")
     sources = sorted((root / "app").glob("*.py"))

@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-circusvoip_core
+radiosmoltz_core
 ================
 
-Logique metier de CircusVOIP, sans interface graphique.
+Logique metier de RadioSmoltz, sans interface graphique.
 
 Ce module contient toutes les fonctions et classes utilisees par le
 client (UI Qt) qui n'ont rien a voir avec le rendu graphique :
@@ -18,7 +18,7 @@ client (UI Qt) qui n'ont rien a voir avec le rendu graphique :
 - Boucle OCR principale (lit la position SC en continu)
 
 Le module s'utilise typiquement en :
-    from circusvoip_core import (
+    from radiosmoltz_core import (
         state, _load_client_cfg, _save_client_cfg, _ws_send_safe,
         _radio_listener, _ocr_loop_inner, ...
     )
@@ -28,7 +28,7 @@ par un objet 'ui' qui expose des methodes set_status / refresh_players
 / etc., similaires a ce que faisait l'ancien ClientUI Tk.
 
 Note historique : ce module est l'extraction des fonctions du fichier
-historique circusvoip_client.py (Tk) qui restaient utilisables sans
+historique radiosmoltz_client.py (Tk) qui restaient utilisables sans
 modification depuis le port Qt. Le code est repris tel quel pour
 preserver son comportement exact (peu de risque de regression).
 """
@@ -74,7 +74,7 @@ except ImportError:
 # dans un CSV separe pour diagnostic crackling. Optionnel : si absent,
 # tous les appels seront no-op.
 try:
-    import circusvoip_audio_rx_logger as _audio_rx_logger
+    import radiosmoltz_audio_rx_logger as _audio_rx_logger
 except Exception:
     _audio_rx_logger = None
 
@@ -112,14 +112,14 @@ VRAM_CLEANUP_PERIOD_S = 30.0  # cleanup VRAM CUDA (cadence inchangee)
 RADIO_RELEASE_LINGER_MS = 200
 
 # Chemin de base : on resout au repertoire de l'application appelante,
-# pas du module circusvoip_core. Permet d'utiliser ce module sans coller
+# pas du module radiosmoltz_core. Permet d'utiliser ce module sans coller
 # son dossier au CWD de l'app appelante.
 _BASE_DIR = Path(__file__).resolve().parent
 
 # Fichier de configuration cote client. Le format est volontairement
 # compatible avec l'ancienne version Tk : on lit/ecrit le meme fichier
 # pour que la migration soit transparente.
-CLIENT_CONFIG_FILE = _BASE_DIR / "circusvoip_client_config.json"
+CLIENT_CONFIG_FILE = _BASE_DIR / "radiosmoltz_client_config.json"
 
 
 
@@ -139,7 +139,7 @@ CLIENT_CONFIG_FILE = _BASE_DIR / "circusvoip_client_config.json"
 
 DEBUG_OCR     = True
 DEBUG_SCREENS = False
-_DEBUG_DIR    = _BASE_DIR / "circusvoip_debug"
+_DEBUG_DIR    = _BASE_DIR / "radiosmoltz_debug"
 
 # Throttling des screenshots debug (par seconde)
 _DEBUG_SCREEN_INTERVAL = 5.0
@@ -150,7 +150,7 @@ _LOG_ARCHIVE_MAX = 10
 
 # Etat du logger (init paresseux)
 _log_initialized = False
-_log_filename    = "circusvoip_debug.log"
+_log_filename    = "radiosmoltz_debug.log"
 _log_player_name = None
 
 def _sanitize_log_name(name: str) -> str:
@@ -165,11 +165,11 @@ def _sanitize_log_name(name: str) -> str:
 
 def _make_log_filename(player_name: str | None) -> str:
     """Genere un nom de fichier de log unique pour cette session avec
-    timestamp : circusvoip_debug_<Joueur>_YYYYMMDD_HHMMSS.log
+    timestamp : radiosmoltz_debug_<Joueur>_YYYYMMDD_HHMMSS.log
     Si pas de joueur connu, utilise 'Joueur' generique."""
     safe_name = _sanitize_log_name(player_name)
     ts_str = time.strftime("%d%m%Y_%H%M%S")
-    return f"circusvoip_debug_{safe_name}_{ts_str}.log"
+    return f"radiosmoltz_debug_{safe_name}_{ts_str}.log"
 
 
 def _rotate_old_logs(player_name: str | None = None):
@@ -192,7 +192,7 @@ def _rotate_old_logs(player_name: str | None = None):
         logs = sorted(
             [p for p in _DEBUG_DIR.iterdir()
              if p.is_file()
-             and p.name.startswith("circusvoip_debug_")
+             and p.name.startswith("radiosmoltz_debug_")
              and p.suffix == ".log"],
             key=lambda p: p.stat().st_mtime,
         )
@@ -278,7 +278,7 @@ _metrics_state = {
 def _log_system_metrics(label: str = ""):
     """Log un snapshot des metriques systeme : CPU global, RAM, GPU NVIDIA
     si dispo (utilisation + VRAM), et la conso CPU/RAM/VRAM specifique du
-    process CircusVOIP. Appele toutes les 30s depuis la boucle stats principale.
+    process RadioSmoltz. Appele toutes les 30s depuis la boucle stats principale.
 
     label : etiquette optionnelle pour distinguer les snapshots particuliers
     (ex: "BASELINE" avant init OCR, "POST-OCR" apres init). Sans label,
@@ -563,7 +563,7 @@ def _log_profiling_metrics():
                 pass
         # Caches sign-flip dans sc_ocr (peuvent grossir avec les containers visites)
         try:
-            import circusvoip_sc_ocr as _sco
+            import radiosmoltz_sc_ocr as _sco
             for attr in ("_sign_memory_per_container", "_sign_correction_streak",
                          "_sign_correction_history", "_sign_restore_guard_streak"):
                 d = getattr(_sco, attr, None)
@@ -610,7 +610,7 @@ def _dbg_log_dedup(key: str, msg: str, value=None, min_interval: float = 5.0):
 # ======================================================================
 # Configuration JSON
 # ======================================================================
-# Le fichier circusvoip_client_config.json stocke les preferences du
+# Le fichier radiosmoltz_client_config.json stocke les preferences du
 # joueur (touches assignees, dernier serveur connu, zone OCR calibree,
 # etc.). Format JSON pour faciliter l'edition manuelle si besoin.
 
@@ -2065,13 +2065,13 @@ def _get_cv2_for_helmet():
 # adaptatif et log dedup. Sans ca, les appels en boucle (helmet scan
 # toutes les 200ms, OCR a 4/s) saturaient le log d'erreurs identiques.
 def _capture_region(region):
-    """Wrapper sur circusvoip_sc_ocr._capture_with_backoff."""
-    from circusvoip_sc_ocr import _capture_with_backoff as _cr
+    """Wrapper sur radiosmoltz_sc_ocr._capture_with_backoff."""
+    from radiosmoltz_sc_ocr import _capture_with_backoff as _cr
     return _cr(region)
 
 def _get_screen_resolution():
-    """Wrapper sur circusvoip_sc_ocr.get_screen_resolution."""
-    from circusvoip_sc_ocr import get_screen_resolution as _gsr
+    """Wrapper sur radiosmoltz_sc_ocr.get_screen_resolution."""
+    from radiosmoltz_sc_ocr import get_screen_resolution as _gsr
     return _gsr()
 
 
@@ -2391,7 +2391,7 @@ async def _audio_ws_loop(ui, my_gen: int = 0):
         # verifier l'identite du serveur : connexion chiffree mais pas
         # d'authentification stricte. C'est acceptable ici car l'auth
         # se fait via le token + le ticket dans le join (cf [P4]).
-        from circusvoip_security import build_client_ssl_context_insecure
+        from radiosmoltz_security import build_client_ssl_context_insecure
         uri = f"wss://{ip}:{AUDIO_PORT}"
         _ssl_ctx = build_client_ssl_context_insecure()
         auth_failed = False
@@ -2482,7 +2482,7 @@ async def _audio_ws_loop(ui, my_gen: int = 0):
                             if is_broadcast_all:
                                 # Diffusion globale : pas de filtrage cote receveur.
                                 # Le serveur audio a deja verifie que l'emetteur a la
-                                # capability can_broadcast (cf circusvoip_audio_server.py
+                                # capability can_broadcast (cf radiosmoltz_audio_server.py
                                 # autour de FLAG_BROADCAST_ALL). On note quand meme
                                 # le timestamp pour dedup proximity (l'emetteur envoie
                                 # aussi une trame 0x00 a cote pour les joueurs proches).
@@ -2534,7 +2534,7 @@ async def _audio_ws_loop(ui, my_gen: int = 0):
                                     # brute, sans filtre. Maintenant si ca recasse,
                                     # le log de debug capturera le traceback.
                                     try:
-                                        from circusvoip_audio_io import apply_radio_effect
+                                        from radiosmoltz_audio_io import apply_radio_effect
                                         arr = np.frombuffer(frame, dtype=np.float32).copy()
                                         arr = apply_radio_effect(arr, sender)
                                         frame = arr.tobytes()
@@ -2818,15 +2818,15 @@ def _heartbeat_loop(ui: "ClientUI"):
 
 
 # ======================================================================
-# OCR loop : import des helpers depuis circusvoip_sc_ocr
+# OCR loop : import des helpers depuis radiosmoltz_sc_ocr
 # ======================================================================
 # La boucle OCR principale (_ocr_loop_inner) utilise plusieurs fonctions
-# du module circusvoip_sc_ocr : read_coords (capture+OCR), distance
+# du module radiosmoltz_sc_ocr : read_coords (capture+OCR), distance
 # (euclidien 3D), _apply_sign_memory (correction signe), _is_sign_flip
 # (validation), _are_containers_similar, _is_cave_container.
 # On les importe ici pour les avoir au niveau module.
 
-from circusvoip_sc_ocr import (
+from radiosmoltz_sc_ocr import (
     read_coords,
     distance,
     compute_proximity_volume,
@@ -2844,7 +2844,7 @@ from circusvoip_sc_ocr import (
 # detection visuelle de tirets a corrige une lecture (auquel cas le
 # filtre sign-flip est court-circuite). Il est defini dans sc_ocr
 # (mis a jour par _restore_minus_signs).
-import circusvoip_sc_ocr as _sco_mod
+import radiosmoltz_sc_ocr as _sco_mod
 
 # Brancher le logger de sc_ocr sur notre _dbg_log pour que les messages
 # [OCR INIT], [COORDS], [SIGN MEMORY], etc. apparaissent dans le fichier
@@ -3653,7 +3653,7 @@ def _ocr_loop_inner(ui: "ClientUI"):
                         _cid = pos.get("container_id")
                         if _cid:
                             # IMPORTANT : ces 3 dicts sont definis dans
-                            # circusvoip_sc_ocr.py (variables module). On y
+                            # radiosmoltz_sc_ocr.py (variables module). On y
                             # accede via le proxy _sco_mod, pas par nom direct,
                             # sinon NameError au runtime (les variables ne
                             # sont pas importees explicitement dans le namespace

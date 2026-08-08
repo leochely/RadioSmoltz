@@ -1,4 +1,4 @@
-# CircusVOIP
+# RadioSmoltz
 
 VOIP de proximité privée pour Star Citizen. La voix des joueurs autour
 de vous s'entend plus ou moins fort selon leur distance dans le jeu,
@@ -8,7 +8,7 @@ calculée à partir de la position lue par OCR sur l'écran du joueur.
 
 La plupart des joueurs ont uniquement besoin de l'installeur **client** :
 
-➡️ **[Télécharger CircusVOIP_Client_Setup_v0.2.0.exe](https://github.com/kainann/CircusVOIP/releases/tag/client-v0.2.0)**
+➡️ **[Télécharger RadioSmoltz_Client_Setup_v0.2.0.exe](https://github.com/kainann/RadioSmoltz/releases/tag/client-v0.2.0)**
 
 Lancez l'installeur, configurez votre micro, configurez la zone OCR,
 définissez les raccourcis radio et profil, connectez-vous au serveur de
@@ -24,15 +24,15 @@ Un groupe a besoin d'**un seul serveur**, hébergé soit :
 
 ### Sur le PC d'un joueur (le plus simple)
 
-➡️ **[Télécharger CircusVOIP_Server_Setup_v0.2.0.exe](https://github.com/kainann/CircusVOIP/releases/tag/server-v0.2.0)**
+➡️ **[Télécharger RadioSmoltz_Server_Setup_v0.2.0.exe](https://github.com/kainann/RadioSmoltz/releases/tag/server-v0.2.0)**
 
 Lancez l'installeur, le serveur démarre et génère un mot de passe
 automatiquement. Communiquez l'IP de la machine + le mot de passe aux
 joueurs.
 
 L'installeur pose les deux serveurs et trois raccourcis :
-`CircusVOIP-Servers.exe` ouvre les deux interfaces d'un coup,
-`CircusVOIP-Positions.exe` et `CircusVOIP-Audio.exe` permettent de n'en
+`RadioSmoltz-Servers.exe` ouvre les deux interfaces d'un coup,
+`RadioSmoltz-Positions.exe` et `RadioSmoltz-Audio.exe` permettent de n'en
 démarrer qu'une. La console d'administration, elle, est livrée avec
 l'installeur **client** : elle pilote le serveur à distance.
 
@@ -48,18 +48,18 @@ plus prudent que sur ton PC perso.
 sources :
 
 ```bash
-git clone https://github.com/kainann/CircusVOIP.git
-cd CircusVOIP/server
+git clone https://github.com/kainann/RadioSmoltz.git
+cd RadioSmoltz/server
 pip install -e .                  # installe websockets + cryptography
-python circusvoip_server.py       # serveur positions (port 8888, wss://)
-python circusvoip_audio_server.py # serveur audio (port 8889, wss://)
+python radiosmoltz_server.py       # serveur positions (port 8888, wss://)
+python radiosmoltz_audio_server.py # serveur audio (port 8889, wss://)
 ```
 
 Sur un VPS Linux sans GUI, ajouter `--headless` aux deux commandes
 pour eviter la dependance a tkinter.
 
 Le mot de passe d'accès est généré automatiquement au premier
-lancement dans `circusvoip_server_config.json`. Communiquez-le aux
+lancement dans `radiosmoltz_server_config.json`. Communiquez-le aux
 joueurs avec l'IP publique de la machine.
 Le certificat TLS (`cert.pem` et `key.pem`) est également généré
 automatiquement au premier lancement et réutilisé ensuite.
@@ -81,8 +81,8 @@ Pour récupérer le mot de passe et le token admin générés au premier
 lancement :
 
 ```bash
-docker compose exec positions cat /data/circusvoip_server_config.json
-docker compose exec positions cat /data/circusvoip_admin_token.json
+docker compose exec positions cat /data/radiosmoltz_server_config.json
+docker compose exec positions cat /data/radiosmoltz_admin_token.json
 ```
 
 > ℹ️ **Sous Git Bash (Windows)**, MSYS réécrit les chemins commençant
@@ -208,7 +208,7 @@ relevés de position pendant ces moments.
 
 ### Overlays
 Petites fenêtres flottantes par-dessus Star Citizen pour donner des
-informations sur CircusVOIP.
+informations sur RadioSmoltz.
 Il faut d'abord passer par **Overlay Edition** pour déplacer,
 redimensionner et activer les fenêtres souhaitées.
 
@@ -286,8 +286,8 @@ Deux installeurs, mais la répartition n'est pas celle qu'on attendrait :
   administre un serveur *à distance*, sa place est donc sur le poste de
   l'administrateur, pas sur la machine qui héberge les serveurs ;
 - **serveur** — les deux serveurs (positions 8888 et audio 8889) ensemble,
-  avec trois exécutables : `CircusVOIP-Servers.exe` les démarre d'un coup,
-  `CircusVOIP-Positions.exe` et `CircusVOIP-Audio.exe` chacun le sien.
+  avec trois exécutables : `RadioSmoltz-Servers.exe` les démarre d'un coup,
+  `RadioSmoltz-Positions.exe` et `RadioSmoltz-Audio.exe` chacun le sien.
 
 Le build tourne aussi sur GitHub Actions : pousser un tag `client-v*` ou
 `server-v*` construit l'installeur correspondant, le teste, et l'attache à la
@@ -322,7 +322,7 @@ Le serveur expose deux services WebSocket distincts :
   localement par chaque client en fonction de la distance.
 
 Les deux serveurs partagent le même token d'authentification stocké
-dans `circusvoip_server_config.json` (généré au premier lancement).
+dans `radiosmoltz_server_config.json` (généré au premier lancement).
 
 ## Crédits
 

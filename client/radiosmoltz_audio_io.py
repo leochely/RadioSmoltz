@@ -1,9 +1,9 @@
 
 # -*- coding: utf-8 -*-
 # =============================================
-#  circusvoip_audio_io.py
+#  radiosmoltz_audio_io.py
 # =============================================
-# Gestion de l'audio pour les clients CircusVOIP.
+# Gestion de l'audio pour les clients RadioSmoltz.
 #
 # - Capture du micro -> envoi via callback (vers WebSocket audio server)
 # - Reception de trames audio avec nom d'emetteur -> lecture locale
@@ -56,7 +56,7 @@ except Exception as e:
 # Si le module est absent (cas tres improbable, fichier manquant), on
 # laisse _audio_rx_logger = None et tous les appels seront no-op.
 try:
-    import circusvoip_audio_rx_logger as _audio_rx_logger
+    import radiosmoltz_audio_rx_logger as _audio_rx_logger
 except Exception:
     _audio_rx_logger = None
 
@@ -67,7 +67,7 @@ def _ns_log(msg: str):
     sont pas captures par le fichier de log debug, donc on essaie
     d'utiliser _dbg_log du core."""
     try:
-        from circusvoip_core import _dbg_log
+        from radiosmoltz_core import _dbg_log
         _dbg_log(msg)
     except Exception:
         try:
@@ -185,7 +185,7 @@ PLC_GAIN = 0.5
 # play_phone_ring. Le buffer numpy est garde en RAM pour rejouer instantanement.
 
 # Dossier ou chercher les sons. Calcule relativement a CE fichier .py.
-# Si circusvoip_audio_io.py est dans app/, alors les sons sont dans
+# Si radiosmoltz_audio_io.py est dans app/, alors les sons sont dans
 # app/sounds/<nom>.wav. C'est compatible avec le packaging par l'installateur
 # Inno Setup ([Files] embarque app/* recursivement).
 import os as _os_for_sounds
@@ -1016,7 +1016,7 @@ class _NoiseSuppressor:
 
 class AudioIO:
     """
-    Gere la capture et la lecture audio pour CircusVOIP.
+    Gere la capture et la lecture audio pour RadioSmoltz.
 
     Usage :
         audio = AudioIO()
@@ -1296,7 +1296,7 @@ class AudioIO:
         enabled   : True pour activer, False pour desactiver.
         pseudo    : nom du joueur (utilise dans le nom du fichier CSV).
                     Ignore si enabled=False.
-        debug_dir : pathlib.Path vers le dossier 'circusvoip_debug' du
+        debug_dir : pathlib.Path vers le dossier 'radiosmoltz_debug' du
                     client. Le sous-dossier 'audio_rx/' sera cree dedans.
                     Ignore si enabled=False.
 

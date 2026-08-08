@@ -1,8 +1,8 @@
 """
-CircusVOIP - Config serveur partagee
+RadioSmoltz - Config serveur partagee
 =====================================
 Gere le mot de passe/token d'authentification commun aux serveurs positions + audio.
-Le mdp est stocke dans circusvoip_server_config.json.
+Le mdp est stocke dans radiosmoltz_server_config.json.
 Si vide ou absent, un token aleatoire est genere au 1er lancement.
 """
 
@@ -11,7 +11,7 @@ import secrets
 import string
 from pathlib import Path
 
-CONFIG_FILE = Path(__file__).resolve().parent / "circusvoip_server_config.json"
+CONFIG_FILE = Path(__file__).resolve().parent / "radiosmoltz_server_config.json"
 
 
 def _generate_token(length: int = 16) -> str:

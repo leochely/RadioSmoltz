@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "circusvoip-server"
+name = "radiosmoltz-server"
 version = "0.1.1"
-description = "Serveur WebSocket pour CircusVOIP - positions + audio relay."
+description = "Serveur WebSocket pour RadioSmoltz - positions + audio relay."
 requires-python = ">=3.10"
 dependencies = [
     "websockets>=12,<14",
@@ -14,9 +14,9 @@ dependencies = [
 
 [tool.setuptools]
 py-modules = [
-    "circusvoip_server",
-    "circusvoip_audio_server",
-    "circusvoip_security",
-    "circusvoip_server_config",
-    "circusvoip_admin",
+    "radiosmoltz_server",
+    "radiosmoltz_audio_server",
+    "radiosmoltz_security",
+    "radiosmoltz_server_config",
+    "radiosmoltz_admin",
 ]

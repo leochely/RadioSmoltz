@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Genere les assets binaires manquants du payload client.
 
-Les assets d'origine (StarCircus.ico, sounds/*.wav) ne sont pas versionnes
+Les assets d'origine (RadioSmoltz.ico, sounds/*.wav) ne sont pas versionnes
 dans le depot : `client/sounds/` est meme dans .gitignore. Ce script cree des
 remplacants neutres pour que l'installeur produise une application complete,
 sans jamais ecraser un fichier existant.
@@ -18,7 +18,7 @@ Ce qui est genere, et pourquoi :
 
 Ce qui n'est PAS genere : ring.wav, dial.wav et notif.wav. Le client
 synthetise ses propres motifs quand ils manquent (cf. _synth_phone_*_pattern
-dans circusvoip_audio_io.py), et un placeholder serait moins bon que le repli.
+dans radiosmoltz_audio_io.py), et un placeholder serait moins bon que le repli.
 
 Les WAV sont ecrits en PCM 16 bits mono 48 kHz : c'est le seul format que
 _load_wav_as_float32 accepte sans conversion.
@@ -28,11 +28,11 @@ Usage : python make-placeholder-assets.py [options] <dossier_app>
   --icon-only        ne genere que l'icone (payload serveur : pas de
                      soundboard ni de sonneries a remplacer)
   --sounds-only      ne genere que les sons
-  --icon-name NOM    nom du fichier icone a creer (defaut StarCircus.ico)
+  --icon-name NOM    nom du fichier icone a creer (defaut RadioSmoltz.ico)
 
 --icon-name existe parce qu'un payload embarque plusieurs icones :
-StarCircus.ico pour le client, StarCircusAdmin.ico pour la console
-d'administration, StarCircusServer.ico cote serveur. Chacune peut manquer
+RadioSmoltz.ico pour le client, RadioSmoltzAdmin.ico pour la console
+d'administration, RadioSmoltzServer.ico cote serveur. Chacune peut manquer
 independamment des autres.
 """
 
@@ -103,7 +103,7 @@ def _alarm_samples() -> list:
 def _draw_icon(size: int) -> list:
     """Retourne une matrice size x size de tuples (b, g, r, a).
 
-    Motif : disque bleu (#58a6ff, la couleur d'accent du theme CircusVOIP)
+    Motif : disque bleu (#58a6ff, la couleur d'accent du theme RadioSmoltz)
     sur fond transparent, avec une etoile a quatre branches evidee au centre.
     Volontairement simple : c'est un placeholder assume, pas un logo.
     """
@@ -198,7 +198,7 @@ def main() -> int:
     args = sys.argv[1:]
     icon_only = "--icon-only" in args
     sounds_only = "--sounds-only" in args
-    icon_name = "StarCircus.ico"
+    icon_name = "RadioSmoltz.ico"
     if "--icon-name" in args:
         i = args.index("--icon-name")
         if i + 1 >= len(args):

@@ -1,11 +1,11 @@
 """
-CircusVOIP Server (PATCHE SECURITE)
+RadioSmoltz Server (PATCHE SECURITE)
 ====================================
-Serveur de partage de positions pour CircusVOIP.
+Serveur de partage de positions pour RadioSmoltz.
 Un joueur héberge, les autres s'y connectent via IP locale.
 
 Lancement :
-  py -3.13 circusvoip_server.py
+  py -3.13 radiosmoltz_server.py
 
 Dépendances :
   pip install websockets
@@ -34,8 +34,8 @@ from pathlib import Path
 if "--headless" not in sys.argv:
     # DPI awareness avant tkinter (ecrans haute resolution)
     try:
-        import circusvoip_dpi
-        circusvoip_dpi.enable_dpi_awareness()
+        import radiosmoltz_dpi
+        radiosmoltz_dpi.enable_dpi_awareness()
     except Exception:
         pass
     import tkinter as tk
@@ -46,7 +46,7 @@ else:
 
 import websockets
 
-from circusvoip_server_config import get_token, set_password
+from radiosmoltz_server_config import get_token, set_password
 
 # [SECURITE] Module commun (lockout, rate limiting, registre de tickets,
 # helper TLS). Doit etre present dans le meme dossier que ce fichier.
@@ -54,7 +54,7 @@ from circusvoip_server_config import get_token, set_password
 # _auth_failures / _auth_banned plus bas (legacy mais fonctionnel), donc
 # on n'utilise PAS AuthLockout ici - juste AuthRegistry (auth partagee
 # avec le serveur audio) et RateLimiter (anti-flood messages).
-from circusvoip_security import AuthRegistry, RateLimiter
+from radiosmoltz_security import AuthRegistry, RateLimiter
 
 # ─────────────────────────────────────────────
 #  Config
@@ -81,25 +81,25 @@ AUTH_BAN_SEC      = 600
 
 # Log debug serveur (meme dossier que le client)
 _BASE_DIR       = Path(__file__).resolve().parent
-_DEBUG_DIR      = _BASE_DIR / "circusvoip_debug"
-DEBUG_LOG_FILE  = _DEBUG_DIR / "circusvoip_server_debug.log"
+_DEBUG_DIR      = _BASE_DIR / "radiosmoltz_debug"
+DEBUG_LOG_FILE  = _DEBUG_DIR / "radiosmoltz_server_debug.log"
 
 # === Log debug enrichi (ajout 25/05/2026) ===
 # Pour debug crackling audio / stats serveur positions, on prefere un
-# fichier par session dans /var/log/circusvoip-positions/positions_<TS>.log
-# (cohabite avec /var/log/circusvoip-audio/). Si le dossier n'est pas
+# fichier par session dans /var/log/radiosmoltz-positions/positions_<TS>.log
+# (cohabite avec /var/log/radiosmoltz-audio/). Si le dossier n'est pas
 # accessible (pas root, droits manquants), on garde le comportement
 # historique (DEBUG_LOG_FILE ecrase a chaque demarrage).
-_POS_LOG_DIR = Path("/var/log/circusvoip-positions")
+_POS_LOG_DIR = Path("/var/log/radiosmoltz-positions")
 _debug_log_actual_path = None  # chemin reellement utilise (rempli par _debug_log_init)
 _debug_log_fp   = None
 _last_pos_time: dict = {}  # dernier timestamp par joueur (pour dt)
 
 # [P4 - auth partagee] Registre de tickets partage avec le serveur audio.
 # A chaque joueur authentifie, le serveur positions emet un ticket court
-# (TTL 120s) ecrit dans circusvoip_auth_tickets.json. Le serveur audio lit
+# (TTL 120s) ecrit dans radiosmoltz_auth_tickets.json. Le serveur audio lit
 # ce fichier pour verifier qu'un client est bien passe par ici d'abord.
-_AUTH_REGISTRY_FILE = _BASE_DIR / "circusvoip_auth_tickets.json"
+_AUTH_REGISTRY_FILE = _BASE_DIR / "radiosmoltz_auth_tickets.json"
 _auth_registry = AuthRegistry(_AUTH_REGISTRY_FILE, ttl_sec=120.0)
 
 # [P5 - rate limiting] Quota de messages par client deja authentifie.
@@ -114,8 +114,8 @@ _msg_rate = RateLimiter(rate=50.0, burst=100.0)
 # ou la bande passante. Pas de broadcast au login : un client demande la
 # photo d'un pair uniquement quand il a besoin de l'afficher (ouverture
 # MP, sonnerie d'appel, ecran contacts).
-_PROFILE_PHOTOS_DIR        = _BASE_DIR / "circusvoip_profile_photos"
-_PROFILE_PHOTOS_INDEX_FILE = _BASE_DIR / "circusvoip_profiles.json"
+_PROFILE_PHOTOS_DIR        = _BASE_DIR / "radiosmoltz_profile_photos"
+_PROFILE_PHOTOS_INDEX_FILE = _BASE_DIR / "radiosmoltz_profiles.json"
 # 200 Ko de bytes JPEG. Cote client on compresse en 200x200 q80, ce qui
 # donne typiquement 15-30 Ko. 200 Ko laisse de la marge pour des photos
 # riches en details. Le base64 transmis pese ~4/3 de cette taille.
@@ -126,7 +126,7 @@ _PROFILE_PSEUDO_MAX_LEN    = 64
 
 # Token admin (distinct du token joueur, pour qu'un joueur ne puisse pas
 # devenir admin avec son seul mdp). Stocke dans un fichier separe.
-_ADMIN_TOKEN_FILE = _BASE_DIR / "circusvoip_admin_token.json"
+_ADMIN_TOKEN_FILE = _BASE_DIR / "radiosmoltz_admin_token.json"
 
 
 def _generate_admin_token() -> str:
@@ -253,13 +253,13 @@ def _debug_log_init():
     """Ouvre/reinitialise le fichier de log debug serveur.
 
     Modif 25/05/2026 : tente d'abord d'ouvrir un fichier par session dans
-    /var/log/circusvoip-positions/positions_YYYYMMDD_HHMMSS.log (cohabite
-    avec /var/log/circusvoip-audio/, permet de garder l'historique entre
+    /var/log/radiosmoltz-positions/positions_YYYYMMDD_HHMMSS.log (cohabite
+    avec /var/log/radiosmoltz-audio/, permet de garder l'historique entre
     redemarrages). Si le dossier n'est pas accessible (pas root / droits
     manquants), fallback sur le DEBUG_LOG_FILE historique (ecrase a chaque
     demarrage)."""
     global _debug_log_fp, _debug_log_actual_path
-    # 1) Tentative /var/log/circusvoip-positions/positions_<TS>.log
+    # 1) Tentative /var/log/radiosmoltz-positions/positions_<TS>.log
     try:
         _POS_LOG_DIR.mkdir(parents=True, exist_ok=True)
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -419,13 +419,13 @@ _phone_log_fp = None
 # La radio (PTT) ne sera audible que par les joueurs sur le MEME canal.
 # La voix de proximite n'est PAS affectee par les canaux.
 
-_CHANNELS_FILE  = _BASE_DIR / "circusvoip_channels.json"
+_CHANNELS_FILE  = _BASE_DIR / "radiosmoltz_channels.json"
 _DEFAULT_CHANNEL = "General"
 _channels: list = []
 
 # Liste de profils (factions/tags). Assignes par l'admin via assign_profile,
 # le client ne peut PAS se les attribuer lui-meme. Independants des canaux.
-_PROFILES_FILE = _BASE_DIR / "circusvoip_profiles.json"
+_PROFILES_FILE = _BASE_DIR / "radiosmoltz_profiles.json"
 _profiles: list = []
 
 # Broadcasters : joueurs autorises a parler simultanement sur TOUS les canaux
@@ -439,7 +439,7 @@ _profiles: list = []
 #   client cible via sa WebSocket. Le client le sauvegarde dans son config et
 #   le presente au join (champ "broadcaster_token"). Le serveur compare en
 #   temps constant. Sans le bon token, le nom est REFUSE au join (anti-impersonation).
-_BROADCASTERS_FILE = _BASE_DIR / "circusvoip_broadcasters.json"
+_BROADCASTERS_FILE = _BASE_DIR / "radiosmoltz_broadcasters.json"
 _broadcasters: dict = {}
 
 
@@ -548,11 +548,11 @@ def _profile_normalize(item) -> dict | None:
 
 
 def _load_profiles() -> list:
-    """Charge la liste des profils depuis circusvoip_profiles.json.
+    """Charge la liste des profils depuis radiosmoltz_profiles.json.
     Format actuel (v0.2 alpha 035) : liste de dicts avec permissions.
     Format ancien (pre-0.2) : liste de strings -> converti auto au boot.
     Retourne [] si absent (les profils sont optionnels).
-    Migration : si l'ancien fichier circusvoip_channels.json contenait
+    Migration : si l'ancien fichier radiosmoltz_channels.json contenait
     des entries avec is_profile=true, on les recupere aussi."""
     profiles = []
     seen = set()
@@ -609,7 +609,7 @@ def _load_profiles() -> list:
 
 
 def _save_profiles():
-    """Persiste la liste des profils dans circusvoip_profiles.json
+    """Persiste la liste des profils dans radiosmoltz_profiles.json
     (format dict avec permissions)."""
     try:
         with open(_PROFILES_FILE, "w", encoding="utf-8") as f:
@@ -661,7 +661,7 @@ def _build_my_profile_msg(profile_name) -> dict:
 
 
 def _load_broadcasters() -> dict:
-    """Charge le mapping {name: hash} depuis circusvoip_broadcasters.json.
+    """Charge le mapping {name: hash} depuis radiosmoltz_broadcasters.json.
     Retourne {} si absent (la capability est opt-in).
 
     Migration : l'ancien format etait une liste de noms (pas de token). Si on
@@ -698,7 +698,7 @@ def _load_broadcasters() -> dict:
 
 
 def _save_broadcasters():
-    """Persiste le mapping {name: hash} dans circusvoip_broadcasters.json.
+    """Persiste le mapping {name: hash} dans radiosmoltz_broadcasters.json.
     Le hash uniquement est persiste, jamais le token en clair."""
     try:
         with open(_BROADCASTERS_FILE, "w", encoding="utf-8") as f:
@@ -2365,11 +2365,11 @@ async def _server_main():
     _log(f"TOKEN JOUEUR : {_masked(SERVER_TOKEN)} "
          f"(visible complet dans l'UI)", BLUE)
     _log(f"TOKEN ADMIN  : {_masked(ADMIN_TOKEN)} "
-         f"(visible dans circusvoip_admin_token.json)", PURPLE)
+         f"(visible dans radiosmoltz_admin_token.json)", PURPLE)
     _log(f"Cap clients  : {MAX_CLIENTS} simultanes", MUTED)
     _log(f"Lockout auth : {AUTH_MAX_FAILURES} echecs / {AUTH_WINDOW_SEC}s "
          f"-> ban {AUTH_BAN_SEC}s", MUTED)
-    _log(f"Log debug : circusvoip_debug/{DEBUG_LOG_FILE.name}", MUTED)
+    _log(f"Log debug : radiosmoltz_debug/{DEBUG_LOG_FILE.name}", MUTED)
     try:
         ip = socket.gethostbyname(socket.gethostname())
         _log(f"IP locale : {ip}:{PORT}", BLUE)
@@ -2401,11 +2401,11 @@ async def _server_main():
     # remplace cert.pem et key.pem par les tiens dans le dossier du
     # serveur. Idealement avec un reverse proxy Caddy/nginx devant qui
     # gere les renouvellements.
-    from circusvoip_security import ensure_self_signed_cert, build_ssl_context
+    from radiosmoltz_security import ensure_self_signed_cert, build_ssl_context
     _cert_file = _BASE_DIR / "cert.pem"
     _key_file  = _BASE_DIR / "key.pem"
     _ok, _detail = ensure_self_signed_cert(
-        _cert_file, _key_file, common_name="circusvoip-server"
+        _cert_file, _key_file, common_name="radiosmoltz-server"
     )
     if not _ok:
         _log(f"[FATAL] Impossible de generer le certificat TLS. "
@@ -2822,33 +2822,33 @@ class ServerUI:
         # Forcer un AppUserModelID distinct sur Windows AVANT tk.Tk().
         # Sans ca, Windows groupe toutes les fenetres Python sous la meme
         # icone (icone Python generique dans la taskbar). Avec un ID
-        # explicite, notre icone StarCircus_Server.ico sera utilisee
+        # explicite, notre icone RadioSmoltz_Server.ico sera utilisee
         # pour la barre des taches au lieu de l'icone Python par defaut.
         try:
             import ctypes
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
-                "CircusVOIP.Server.0.2"
+                "RadioSmoltz.Server.0.2"
             )
         except Exception:
             pass
 
         self.root = tk.Tk()
-        self.root.title("CircusVOIP — Serveur 0.2")
+        self.root.title("RadioSmoltz — Serveur 0.2")
         self.root.configure(bg=BG)
-        # Icone de la fenetre + barre des taches : StarCircus_Server.ico
+        # Icone de la fenetre + barre des taches : RadioSmoltz_Server.ico
         # qui est dans le meme dossier que le script. Fallback silencieux
         # si le fichier est absent (pas critique).
         try:
             from pathlib import Path as _Path
-            _ico_path = _Path(__file__).resolve().parent / "StarCircus_Server.ico"
+            _ico_path = _Path(__file__).resolve().parent / "RadioSmoltz_Server.ico"
             if _ico_path.exists():
                 self.root.iconbitmap(default=str(_ico_path))
                 self.root.wm_iconbitmap(str(_ico_path))
         except Exception:
             pass
         try:
-            import circusvoip_dpi
-            circusvoip_dpi.apply_tk_scaling(self.root)
+            import radiosmoltz_dpi
+            radiosmoltz_dpi.apply_tk_scaling(self.root)
         except Exception:
             pass
         self.root.geometry("900x600")
@@ -2898,7 +2898,7 @@ class ServerUI:
         header = tk.Frame(self.root, bg=BG, pady=8)
         header.pack(fill="x", padx=12)
 
-        tk.Label(header, text="◉  CircusVOIP Server", bg=BG, fg=BLUE,
+        tk.Label(header, text="◉  RadioSmoltz Server", bg=BG, fg=BLUE,
                  font=("Courier", 14, "bold")).pack(side="left")
 
         self._lbl_ip = tk.Label(header, text="démarrage…", bg=BG, fg=MUTED,
@@ -3235,7 +3235,7 @@ class ServerUI:
                 self._refresh_profiles_ui()
             else:
                 messagebox.showwarning(
-                    "CircusVOIP",
+                    "RadioSmoltz",
                     "Profil invalide ou deja existant",
                     parent=self.root,
                 )
@@ -3254,7 +3254,7 @@ class ServerUI:
                 self._refresh_profiles_ui()
             else:
                 messagebox.showwarning(
-                    "CircusVOIP",
+                    "RadioSmoltz",
                     "Renommage refuse (nom invalide ou deja pris)",
                     parent=self.root,
                 )
@@ -3312,7 +3312,7 @@ class ServerUI:
                 self._refresh_channels_ui()
             else:
                 messagebox.showwarning(
-                    "CircusVOIP",
+                    "RadioSmoltz",
                     "Canal invalide ou deja existant",
                     parent=self.root,
                 )
@@ -3331,7 +3331,7 @@ class ServerUI:
                 self._refresh_channels_ui()
             else:
                 messagebox.showwarning(
-                    "CircusVOIP",
+                    "RadioSmoltz",
                     "Renommage refuse (nom invalide ou deja pris)",
                     parent=self.root,
                 )
@@ -3560,12 +3560,12 @@ class ServerUI:
 def _run_headless():
     """Lance le serveur sans UI Tkinter."""
     print("=" * 60)
-    print("CircusVOIP Server - mode headless")
+    print("RadioSmoltz Server - mode headless")
     print(f"Port positions : {PORT}")
     print(f"Token serveur  : {_masked(SERVER_TOKEN)}  "
-          f"(valeur complete dans circusvoip_server_config.json)")
+          f"(valeur complete dans radiosmoltz_server_config.json)")
     print(f"Token admin    : {_masked(ADMIN_TOKEN)}  "
-          f"(valeur complete dans circusvoip_admin_token.json)")
+          f"(valeur complete dans radiosmoltz_admin_token.json)")
     print(f"Cap clients    : {MAX_CLIENTS} simultanes")
     print(f"Lockout auth   : {AUTH_MAX_FAILURES} echecs / {AUTH_WINDOW_SEC}s "
           f"-> ban {AUTH_BAN_SEC}s")

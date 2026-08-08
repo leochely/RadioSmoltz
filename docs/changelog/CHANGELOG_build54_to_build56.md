@@ -1,4 +1,4 @@
-# CircusVOIP — Changelog build 54 → build 56
+# RadioSmoltz — Changelog build 54 → build 56
 
 **Cible :** fork `firesstones/circus-voip` tag `v0.2.3-build54` → build 56 upstream Kainan
 **Date upstream :** 29/05/2026
@@ -8,13 +8,13 @@ Ce document liste tous les changements **upstream** entre le build 54 (base de t
 build 56 actuel. Les numéros de ligne sont ceux de la **version upstream build 56** sauf
 indication contraire.
 
-Les modifs propres à ton fork (intégration `circusvoip_circus_ocr_client`, désactivation
+Les modifs propres à ton fork (intégration `radiosmoltz_circus_ocr_client`, désactivation
 de l'updater, support Linux, hot-reload hotkeys, etc.) sont **à conserver côté fork** : aucun
 changement upstream ne les écrase ni n'entre en conflit avec elles.
 
 ---
 
-## 1. `circusvoip_sc_ocr.py` — gros changements à reporter
+## 1. `radiosmoltz_sc_ocr.py` — gros changements à reporter
 
 Le fichier passe de **4442 lignes** (`_legacy.py` build 54 dans ton circus-ocr) à **4788 lignes**
 (build 56 upstream). 346 lignes nettes ajoutées.
@@ -23,7 +23,7 @@ Le fichier passe de **4442 lignes** (`_legacy.py` build 54 dans ton circus-ocr) 
 
 Nouvelle section "API publique étendue" dans le docstring du module. Énumère les
 fonctions/alias publics destinés aux consommateurs externes (notamment ton service
-`circus_ocr` et ton `circusvoip_circus_ocr_client.py`). Purement documentaire.
+`circus_ocr` et ton `radiosmoltz_circus_ocr_client.py`). Purement documentaire.
 
 ### 1.2 Whitelist de zones connues — ajouts de containers SC
 
@@ -98,25 +98,25 @@ mêmes objets, juste sous un nom sans prefixe `_`.
 | `ensure_imaging` | `_ensure_imaging` | `engine.py` |
 | `get_easy_ocr` | `_get_easy_ocr` | `engine.py` |
 | `easy_ocr_image` | `_easy_ocr_image` | `engine.py` |
-| `apply_sign_memory` | `_apply_sign_memory` | `circusvoip_core.py` |
-| `is_sign_flip` | `_is_sign_flip` | `circusvoip_core.py` |
-| `are_containers_similar` | `_are_containers_similar` | `circusvoip_core.py` |
-| `is_cave_container` | `_is_cave_container` | `circusvoip_core.py` |
-| `capture_with_backoff` | `_capture_with_backoff` | `circusvoip_core.py` |
-| `parse_coords` | `_parse_coords` | `circusvoip_circus_ocr_client.py` ligne 419 |
-| `normalize_numbers` | `_normalize_numbers` | `circusvoip_circus_ocr_client.py` ligne 418 |
-| `pretty_container_name` | `_pretty_container_name` | `circusvoip_client.py` (UI affichage zone) |
+| `apply_sign_memory` | `_apply_sign_memory` | `radiosmoltz_core.py` |
+| `is_sign_flip` | `_is_sign_flip` | `radiosmoltz_core.py` |
+| `are_containers_similar` | `_are_containers_similar` | `radiosmoltz_core.py` |
+| `is_cave_container` | `_is_cave_container` | `radiosmoltz_core.py` |
+| `capture_with_backoff` | `_capture_with_backoff` | `radiosmoltz_core.py` |
+| `parse_coords` | `_parse_coords` | `radiosmoltz_circus_ocr_client.py` ligne 419 |
+| `normalize_numbers` | `_normalize_numbers` | `radiosmoltz_circus_ocr_client.py` ligne 418 |
+| `pretty_container_name` | `_pretty_container_name` | `radiosmoltz_client.py` (UI affichage zone) |
 | `set_force_cpu(flag)` | setter pour `_ocr_force_cpu_flag` | utile pour init programmatique |
 | `get_minus_was_restored()` | getter pour `_minus_was_restored` | `engine.py` + ton `_read_coords_prefer_circus_ocr` (via `setattr` actuellement) |
 
 **Migration recommandée mais non bloquante** : tu peux remplacer les accès `getattr(mod, "_xxx")`
-de ton `circusvoip_circus_ocr_client.py` (lignes 418-421) par les noms publics. Bénéfice :
+de ton `radiosmoltz_circus_ocr_client.py` (lignes 418-421) par les noms publics. Bénéfice :
 tes prochains rebases ne seront plus exposés à un éventuel refactor interne de ces fonctions
 privées. Les anciens noms privés continuent de fonctionner.
 
 ---
 
-## 2. `circusvoip_client.py` — changements UI à reporter
+## 2. `radiosmoltz_client.py` — changements UI à reporter
 
 Le fichier passe de **15760 lignes** (ton fork build 54) à **16698 lignes** (build 56 upstream).
 +938 lignes nettes, mais l'essentiel se concentre sur la nav clavier CircusPhone.
@@ -169,17 +169,17 @@ Ligne **14026** : `lbl.setFixedWidth(95)` dans le helper `_add_volume_slider`. A
 
 ---
 
-## 3. `circusvoip_core.py` — RAS
+## 3. `radiosmoltz_core.py` — RAS
 
 **Aucun changement upstream** entre build 54 et build 56. Le diff observé contre ton fork
-ne montre que **tes propres ajouts** (import `circusvoip_circus_ocr_client`, fonction
+ne montre que **tes propres ajouts** (import `radiosmoltz_circus_ocr_client`, fonction
 `_read_coords_prefer_circus_ocr`, swap de `read_coords` ligne 3171 du fork).
 
 → **Aucune action requise côté core.** Ton intégration Circus OCR est intacte.
 
 ---
 
-## 4. `circusvoip_audio_io.py` — RAS
+## 4. `radiosmoltz_audio_io.py` — RAS
 
 Le fix compteur underrun (date 25/05/2026) est **antérieur** à ton fork build 54, donc déjà
 présent chez toi. Aucun changement post-25/05.
@@ -188,7 +188,7 @@ présent chez toi. Aucun changement post-25/05.
 
 ---
 
-## 5. `circusvoip_security.py` — RAS
+## 5. `radiosmoltz_security.py` — RAS
 
 Aucun changement.
 
@@ -201,10 +201,10 @@ Aucun changement.
 Les fichiers serveur ne sont pas dans ton fork (tu consommes l'infra VPS de Kainan) mais
 ils ont changé en parallèle :
 
-- **`circusvoip_audio_server.py`** : rate limit doublé `60→120 frames/s`, burst `120→240`.
+- **`radiosmoltz_audio_server.py`** : rate limit doublé `60→120 frames/s`, burst `120→240`.
   Effet pour toi : si tes utilisateurs émettent à plus de 60 trames/s (proximity + PTT
   concurrents), ils ne sont plus rate-limited.
-- **`circusvoip_server.py`** (positions) : ajout de logs debug `/var/log/circusvoip-positions/`
+- **`radiosmoltz_server.py`** (positions) : ajout de logs debug `/var/log/radiosmoltz-positions/`
   côté serveur. Aucun impact côté client.
 
 Les serveurs Kainan sont déjà déployés en build 56.
@@ -215,19 +215,19 @@ Les serveurs Kainan sont déjà déployés en build 56.
 
 Par ordre de priorité :
 
-1. **`circusvoip_sc_ocr.py`** : rebase complet sur la version upstream build 56 (4788 lignes).
+1. **`radiosmoltz_sc_ocr.py`** : rebase complet sur la version upstream build 56 (4788 lignes).
    Tout est compatible avec ton fork, et les nouveaux alias publics te permettent de
-   simplifier ton `circusvoip_circus_ocr_client.py`.
+   simplifier ton `radiosmoltz_circus_ocr_client.py`.
 
-2. **`circusvoip_client.py`** : merger la nav clavier CircusPhone (sections 2.1-2.2-2.3
+2. **`radiosmoltz_client.py`** : merger la nav clavier CircusPhone (sections 2.1-2.2-2.3
    ci-dessus). Si tu as modifié l'overlay `_PhoneOverlay` pour ton fork, vérifier qu'il
    n'y a pas de conflit avec les nouveaux attributs (`_nav_index`, `_nav_action`,
    `_nav_rows`, `_nav_listener`, `_convo_nav_index`, `_convo_in_field`).
 
-3. **`circusvoip_core.py` / `audio_io.py` / `security.py`** : rien.
+3. **`radiosmoltz_core.py` / `audio_io.py` / `security.py`** : rien.
 
 4. **Optionnel** : migrer les accès `getattr(_voip_ocr, "_xxx")` de ton
-   `circusvoip_circus_ocr_client.py` vers les noms publics. Tes hooks restent fonctionnels
+   `radiosmoltz_circus_ocr_client.py` vers les noms publics. Tes hooks restent fonctionnels
    sans cette migration.
 
 ---

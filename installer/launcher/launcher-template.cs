@@ -1,5 +1,5 @@
 // ======================================================================
-//  Modele de lanceur CircusVOIP
+//  Modele de lanceur RadioSmoltz
 // ======================================================================
 //  Compile par installer\build-installer.ps1, une fois par lanceur, apres
 //  substitution de __SCRIPTS__ et __TITLE__. Le compilateur utilise est
@@ -22,12 +22,12 @@
 //  l'emplacement du lanceur : l'installation reste deplacable, et rien
 //  n'est code en dur au build.
 //
-//      <InstallDir>\CircusVOIP-Servers.exe   <- ce binaire
+//      <InstallDir>\RadioSmoltz-Servers.exe   <- ce binaire
 //      <InstallDir>\runtime\pythonw.exe
-//      <InstallDir>\app\circusvoip_server.py
+//      <InstallDir>\app\radiosmoltz_server.py
 //
 //  Les arguments recus sont transmis tels quels au(x) script(s), ce qui
-//  permet par exemple : CircusVOIP-Positions.exe --headless
+//  permet par exemple : RadioSmoltz-Positions.exe --headless
 // ======================================================================
 
 using System;
@@ -78,7 +78,7 @@ internal static class CircusVoipLauncher
         if (!File.Exists(python))
         {
             Fail("Runtime Python introuvable :\n" + python +
-                 "\n\nL'installation semble incomplete. Reinstallez CircusVOIP.");
+                 "\n\nL'installation semble incomplete. Reinstallez RadioSmoltz.");
             return 1;
         }
 
@@ -98,7 +98,7 @@ internal static class CircusVoipLauncher
             if (!File.Exists(full))
             {
                 Fail("Script introuvable :\n" + full +
-                     "\n\nL'installation semble incomplete. Reinstallez CircusVOIP.");
+                     "\n\nL'installation semble incomplete. Reinstallez RadioSmoltz.");
                 return 1;
             }
         }

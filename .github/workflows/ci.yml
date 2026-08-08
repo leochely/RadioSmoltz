@@ -51,6 +51,6 @@ jobs:
         working-directory: server
         run: |
           python -c "import sys; sys.argv = ['x', '--headless']; \
-            import circusvoip_server_config, circusvoip_security, \
-                   circusvoip_server, circusvoip_audio_server; \
+            import radiosmoltz_server_config, radiosmoltz_security, \
+                   radiosmoltz_server, radiosmoltz_audio_server; \
             print('all server modules import OK')"

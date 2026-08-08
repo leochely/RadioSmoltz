@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # =============================================
-#  CircusVOIP Admin
+#  RadioSmoltz Admin
 # =============================================
-# Console d'administration distante pour CircusVOIP Server.
+# Console d'administration distante pour RadioSmoltz Server.
 # Se connecte au serveur via WebSocket port 8888 avec un message
 # auth_admin + token admin (different du token joueur).
 #
@@ -15,7 +15,7 @@
 #   - Kicker un joueur
 #   - Voir les logs serveur en temps reel
 #
-# Lancement : py -3 circusvoip_admin.py
+# Lancement : py -3 radiosmoltz_admin.py
 # Deps      : pip install websockets
 # =============================================
 
@@ -26,8 +26,8 @@ import time
 
 # DPI awareness avant tkinter (ecrans haute resolution)
 try:
-    import circusvoip_dpi
-    circusvoip_dpi.enable_dpi_awareness()
+    import radiosmoltz_dpi
+    radiosmoltz_dpi.enable_dpi_awareness()
 except Exception:
     pass
 
@@ -43,7 +43,7 @@ import websockets
 # ---------------------------------------------
 
 _BASE_DIR   = Path(__file__).resolve().parent
-CONFIG_FILE = _BASE_DIR / "circusvoip_admin_config.json"
+CONFIG_FILE = _BASE_DIR / "radiosmoltz_admin_config.json"
 SERVER_PORT = 8888  # le port joueur, l'admin partage le meme port
 
 # ---------------------------------------------
@@ -131,7 +131,7 @@ async def _ws_client(ui):
     # (chiffrement OK, pas d'auth stricte du cert). L'auth admin se fait
     # ensuite via le token dans le message "auth_admin" (compare_digest
     # cote serveur).
-    from circusvoip_security import build_client_ssl_context_insecure
+    from radiosmoltz_security import build_client_ssl_context_insecure
     uri = f"wss://{state.server_ip}:{SERVER_PORT}"
     _ssl_ctx = build_client_ssl_context_insecure()
     try:
@@ -349,24 +349,24 @@ class AdminUI:
         state.admin_token = self._cfg.get("admin_token", "")
 
         # Forcer un AppUserModelID distinct sur Windows AVANT tk.Tk().
-        # Permet a Windows d'utiliser notre icone StarCircus_Admin.ico
+        # Permet a Windows d'utiliser notre icone RadioSmoltz_Admin.ico
         # dans la taskbar au lieu de l'icone Python par defaut.
         try:
             import ctypes
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
-                "CircusVOIP.Admin.0.1"
+                "RadioSmoltz.Admin.0.1"
             )
         except Exception:
             pass
 
         self.root = tk.Tk()
-        self.root.title("CircusVOIP - Admin 0.1")
+        self.root.title("RadioSmoltz - Admin 0.1")
         self.root.configure(bg=BG)
-        # Icone Admin (bandeau rouge ADMIN) : fichier StarCircus_Admin.ico
+        # Icone Admin (bandeau rouge ADMIN) : fichier RadioSmoltz_Admin.ico
         # a cote du script. Fallback silencieux si absent.
         try:
             from pathlib import Path as _Path
-            _ico_path = _Path(__file__).resolve().parent / "StarCircus_Admin.ico"
+            _ico_path = _Path(__file__).resolve().parent / "RadioSmoltz_Admin.ico"
             if _ico_path.exists():
                 self.root.iconbitmap(default=str(_ico_path))
                 self.root.wm_iconbitmap(str(_ico_path))
@@ -374,8 +374,8 @@ class AdminUI:
             pass
         # DPI scaling pour les ecrans haute resolution
         try:
-            import circusvoip_dpi
-            circusvoip_dpi.apply_tk_scaling(self.root)
+            import radiosmoltz_dpi
+            radiosmoltz_dpi.apply_tk_scaling(self.root)
         except Exception:
             pass
         self.root.geometry("1100x700")
@@ -392,7 +392,7 @@ class AdminUI:
         # Header (connexion)
         header = tk.Frame(self.root, bg=BG, pady=8)
         header.pack(fill="x", padx=12)
-        tk.Label(header, text="CircusVOIP Admin", bg=BG, fg=PURPLE,
+        tk.Label(header, text="RadioSmoltz Admin", bg=BG, fg=PURPLE,
                  font=("Courier", 13, "bold")).pack(side="left")
         self._lbl_status = tk.Label(header, text="Deconnecte", bg=BG, fg=MUTED,
                                     font=("Courier", 9))
@@ -611,7 +611,7 @@ class AdminUI:
         ip = self._entry_ip.get().strip() or "127.0.0.1"
         token = self._entry_token.get().strip()
         if not token:
-            messagebox.showwarning("CircusVOIP Admin",
+            messagebox.showwarning("RadioSmoltz Admin",
                                    "Token admin requis", parent=self.root)
             return
         state.server_ip   = ip
@@ -994,7 +994,7 @@ class AdminUI:
 
     def _send_cmd(self, payload: dict):
         if not state.connected:
-            messagebox.showwarning("CircusVOIP Admin",
+            messagebox.showwarning("RadioSmoltz Admin",
                                    "Pas connecte au serveur",
                                    parent=self.root)
             return

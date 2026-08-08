@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 # =============================================
-#  CircusVOIP Update Server
+#  RadioSmoltz Update Server
 # =============================================
 # Serveur HTTP statique qui sert les fichiers de mise a jour pour le client
-# CircusVOIP. Le client interroge :
+# RadioSmoltz. Le client interroge :
 #   - GET http://<server>:8080/manifest.json    -> meta-donnees de version
 #   - GET http://<server>:8080/files/<nom>.py   -> fichiers a telecharger
 #   - GET http://<server>:8080/pip_packages/... -> wheels python optionnels
 #
-# Lancement : py -3 circusvoip_update_server.py [--headless]
+# Lancement : py -3 radiosmoltz_update_server.py [--headless]
 # Le port 8080 doit etre ouvert dans le firewall du serveur (ufw allow 8080).
 #
 # Securite :
@@ -39,7 +39,7 @@ _BASE_DIR    = Path(__file__).resolve().parent
 # Dossier des fichiers a servir. Par defaut, on cherche un dossier 'updates'
 # a cote du script. En production sur le VPS Hetzner, on l'override via
 # variable d'environnement CIRCUSVOIP_UPDATES_DIR pour pointer vers
-# /home/circusvoip/updates/ (a cote de app/, pas dedans). Ca separe
+# /home/radiosmoltz/updates/ (a cote de app/, pas dedans). Ca separe
 # proprement les fichiers de l'app et les fichiers de release.
 _default_updates_dir = _BASE_DIR / "updates"
 _env_updates_dir = os.environ.get("CIRCUSVOIP_UPDATES_DIR", "").strip()
@@ -55,15 +55,15 @@ HTTP_PORT    = 8080
 
 if "--headless" not in sys.argv:
     try:
-        import circusvoip_dpi
-        circusvoip_dpi.enable_dpi_awareness()
+        import radiosmoltz_dpi
+        radiosmoltz_dpi.enable_dpi_awareness()
     except Exception:
         pass
     import tkinter as tk
 else:
     tk = None  # mode headless
 
-# Theme (identique aux autres binaires CircusVOIP)
+# Theme (identique aux autres binaires RadioSmoltz)
 BG       = "#0d1117"
 BG_PANEL = "#161b22"
 BG_ROW   = "#21262d"
@@ -239,11 +239,11 @@ class ServerUI:
 
     def __init__(self):
         self.root = tk.Tk()
-        self.root.title("CircusVOIP - Update Server")
+        self.root.title("RadioSmoltz - Update Server")
         self.root.configure(bg=BG)
         try:
-            import circusvoip_dpi
-            circusvoip_dpi.apply_tk_scaling(self.root)
+            import radiosmoltz_dpi
+            radiosmoltz_dpi.apply_tk_scaling(self.root)
         except Exception:
             pass
         self.root.geometry("720x500")
@@ -259,7 +259,7 @@ class ServerUI:
     def _build_ui(self):
         header = tk.Frame(self.root, bg=BG, pady=8)
         header.pack(fill="x", padx=12)
-        tk.Label(header, text="CircusVOIP Update Server", bg=BG, fg=BLUE,
+        tk.Label(header, text="RadioSmoltz Update Server", bg=BG, fg=BLUE,
                  font=("Courier", 13, "bold")).pack(side="left")
         self._lbl_status = tk.Label(header, text="...", bg=BG, fg=MUTED,
                                     font=("Courier", 9))
@@ -360,7 +360,7 @@ class ServerUI:
 
 def _run_headless():
     print("=" * 60)
-    print("CircusVOIP Update Server - mode headless")
+    print("RadioSmoltz Update Server - mode headless")
     print(f"Port HTTP : {HTTP_PORT}")
     print(f"Dossier   : {UPDATES_DIR}")
     print("=" * 60)

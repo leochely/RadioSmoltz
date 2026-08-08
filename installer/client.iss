@@ -1,5 +1,5 @@
 ; ======================================================================
-;  CircusVOIP - installeur client (Inno Setup 6)
+;  RadioSmoltz - installeur client (Inno Setup 6)
 ; ======================================================================
 ;  Ne pas compiler directement : les defines viennent de
 ;  installer\build-installer.ps1, qui prepare d'abord le payload
@@ -10,15 +10,15 @@
 ;  Layout installe (impose par le code client, qui resout ses chemins avec
 ;  Path(__file__).parent et cherche site-packages dans runtime\) :
 ;
-;      <InstallDir>\app\circusvoip_client.py     <- sources + config runtime
+;      <InstallDir>\app\radiosmoltz_client.py     <- sources + config runtime
 ;      <InstallDir>\app\sounds\*.wav
 ;      <InstallDir>\runtime\python.exe           <- CPython embarque (PBS)
 ;      <InstallDir>\runtime\Lib\site-packages\   <- dependances pip
 ;
-;  La console d'administration (circusvoip_admin.py) est livree ici, bien
+;  La console d'administration (radiosmoltz_admin.py) est livree ici, bien
 ;  qu'elle vienne de server\ : elle administre un serveur a distance depuis le
 ;  poste de l'administrateur. Elle persiste son IP et son token dans
-;  app\circusvoip_admin_config.json, conserve a la desinstallation comme le
+;  app\radiosmoltz_admin_config.json, conserve a la desinstallation comme le
 ;  reste de la configuration.
 ;
 ;  L'installation se fait par defaut dans {localappdata} et non dans
@@ -69,21 +69,21 @@
   #define OutDir "out"
 #endif
 #ifndef OutName
-  #define OutName "CircusVOIP_Client_Setup"
+  #define OutName "RadioSmoltz_Client_Setup"
 #endif
 
-#define AppName        "CircusVOIP"
+#define AppName        "RadioSmoltz"
 #define AppPublisher   "Leix"
-#define AppUrl         "https://github.com/leochely/CircusVOIP"
-#define ClientScript   "circusvoip_client.py"
-#define AdminScript    "circusvoip_admin.py"
+#define AppUrl         "https://github.com/leochely/RadioSmoltz"
+#define ClientScript   "radiosmoltz_client.py"
+#define AdminScript    "radiosmoltz_admin.py"
 
 ; Deux applications, deux icones : le client de jeu et la console
 ; d'administration. Les noms sont ceux que build-installer.ps1 depose dans
 ; app\ ($ClientIcons) -- les changer ici sans les changer la-bas ferait
 ; retomber les raccourcis sur l'icone de python.exe.
-#define IconRelative      "app\StarCircus.ico"
-#define AdminIconRelative "app\StarCircusAdmin.ico"
+#define IconRelative      "app\RadioSmoltz.ico"
+#define AdminIconRelative "app\RadioSmoltzAdmin.ico"
 #define HasIcon           FileExists(AddBackslash(PayloadDir) + IconRelative)
 #define HasAdminIcon      FileExists(AddBackslash(PayloadDir) + AdminIconRelative)
 
@@ -159,7 +159,7 @@ Name: "consoleicon"; Description: "Ajouter un raccourci de diagnostic (console v
 
 [Files]
 ; Sources + assets. 'ignoreversion' : ce sont des .py/.wav, pas de version de
-; fichier a comparer. La config utilisateur (circusvoip_client_config.json,
+; fichier a comparer. La config utilisateur (radiosmoltz_client_config.json,
 ; circusphone_*.json, photos de profil, bips ptt_*.wav) n'est PAS dans le
 ; payload : elle survit donc telle quelle a une mise a jour.
 Source: "{#PayloadDir}\app\*"; DestDir: "{app}\app"; Flags: recursesubdirs createallsubdirs ignoreversion
@@ -177,12 +177,12 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\runtime\pythonw.exe"; Paramet
 ; du bootstrap pip. Indispensable pour diagnostiquer un demarrage qui echoue.
 Name: "{group}\{#AppName} (console de diagnostic)"; Filename: "{app}\runtime\python.exe"; Parameters: """{app}\app\{#ClientScript}"""; WorkingDir: "{app}\app"; IconFilename: "{#ShortcutIcon}"; Tasks: consoleicon
 
-; Console d'administration (circusvoip_admin.py). Elle vit dans server\ dans
+; Console d'administration (radiosmoltz_admin.py). Elle vit dans server\ dans
 ; le depot mais s'installe ici : elle pilote un serveur A DISTANCE, en wss://
 ; sur le port 8888, et sert donc depuis le poste de l'administrateur -- pas
 ; depuis le VPS ou le conteneur qui heberge les serveurs. pythonw.exe : c'est
 ; une interface tkinter, elle n'a rien a dire sur stdout.
-Name: "{group}\Console d'administration"; Filename: "{app}\runtime\pythonw.exe"; Parameters: """{app}\app\{#AdminScript}"""; WorkingDir: "{app}\app"; IconFilename: "{#AdminIcon}"; Comment: "Administrer un serveur CircusVOIP a distance"
+Name: "{group}\Console d'administration"; Filename: "{app}\runtime\pythonw.exe"; Parameters: """{app}\app\{#AdminScript}"""; WorkingDir: "{app}\app"; IconFilename: "{#AdminIcon}"; Comment: "Administrer un serveur RadioSmoltz a distance"
 
 Name: "{group}\Dossier d'installation"; Filename: "{app}"
 Name: "{group}\{cm:UninstallProgram,{#AppName}}"; Filename: "{uninstallexe}"
@@ -245,8 +245,8 @@ Filename: "{app}\runtime\python.exe"; \
 ; chaque execution.
 Type: filesandordirs; Name: "{app}\runtime"
 Type: filesandordirs; Name: "{app}\app\__pycache__"
-Type: filesandordirs; Name: "{app}\app\circusvoip_debug"
-Type: filesandordirs; Name: "{app}\app\circusvoip_profile_photo_cache"
+Type: filesandordirs; Name: "{app}\app\radiosmoltz_debug"
+Type: filesandordirs; Name: "{app}\app\radiosmoltz_profile_photo_cache"
 ; La configuration et l'historique CircusPhone sont volontairement conserves
 ; (une reinstallation retrouve les reglages du joueur).
 
@@ -258,7 +258,7 @@ french.WelcomeLabel2=Ceci va installer [name/ver] sur votre ordinateur.%n%nL'ins
 { ------------------------------------------------------------------
   Choix du moteur OCR
   ------------------------------------------------------------------
-  CircusVOIP lit la position du joueur par OCR (EasyOCR, qui tourne sur
+  RadioSmoltz lit la position du joueur par OCR (EasyOCR, qui tourne sur
   PyTorch). Le moteur ne peut pas etre embarque par defaut : il pese 243 Mo
   en CPU et pres de 2 Go en CUDA.
 
@@ -301,7 +301,7 @@ begin
   OcrPage := CreateInputOptionPage(wpSelectTasks,
     'Moteur de reconnaissance de texte',
     'Quelle variante installer ?',
-    'CircusVOIP lit votre position dans Star Citizen par OCR. Le moteur ' +
+    'RadioSmoltz lit votre position dans Star Citizen par OCR. Le moteur ' +
     '(EasyOCR + PyTorch) n''est pas inclus dans l''installeur : il se ' +
     'telecharge une seule fois.',
     True, False);
@@ -407,7 +407,7 @@ begin
     begin
       Result := MsgBox(
         'Emplacement deconseille.' + #13#10 + #13#10 +
-        'CircusVOIP enregistre sa configuration, ses conversations et ses ' +
+        'RadioSmoltz enregistre sa configuration, ses conversations et ses ' +
         'mises a jour automatiques dans son dossier d''installation. Sous ' +
         '"Program Files", ces ecritures necessitent des droits ' +
         'administrateur et la mise a jour automatique echouera.' + #13#10 + #13#10 +

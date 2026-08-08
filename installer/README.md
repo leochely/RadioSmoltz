@@ -1,32 +1,32 @@
 # Construire les installeurs Windows
 
-Le dépôt amont publie `CircusVOIP_Client_Setup_vX.Y.Z.exe` et
-`CircusVOIP_Server_Setup_vX.Y.Z.exe` dans ses releases, mais la chaîne de
+Le dépôt amont publie `RadioSmoltz_Client_Setup_vX.Y.Z.exe` et
+`RadioSmoltz_Server_Setup_vX.Y.Z.exe` dans ses releases, mais la chaîne de
 packaging n'est pas versionnée. Ce dossier la reconstitue.
 
 ## Ce que produit l'installeur
 
 Le layout installé n'est pas arbitraire : c'est celui que le code attend.
-`circusvoip_audio_io.py` cherche ses sons dans `app/sounds/` (« packaging par
+`radiosmoltz_audio_io.py` cherche ses sons dans `app/sounds/` (« packaging par
 l'installateur Inno Setup, `[Files]` embarque `app/*` récursivement ») et
-`circusvoip_client.py` cherche les paquets pip dans
+`radiosmoltz_client.py` cherche les paquets pip dans
 `runtime/Lib/site-packages/` (« pour un PBS embarqué »). D'où :
 
 ```
-<InstallDir>\                       %LOCALAPPDATA%\CircusVOIP par défaut
+<InstallDir>\                       %LOCALAPPDATA%\RadioSmoltz par défaut
 ├── app\
-│   ├── circusvoip_client.py        sources, mises à jour en place par
-│   ├── circusvoip_core.py          l'updater intégré du client
-│   ├── circusvoip_audio_io.py
-│   ├── circusvoip_sc_ocr.py
-│   ├── circusvoip_security.py
-│   ├── circusvoip_audio_rx_logger.py
-│   ├── circusvoip_admin.py         console d'admin (vient de server\)
-│   ├── circusvoip_version.json     version affichée + comparée au serveur
-│   ├── StarCircus.ico
+│   ├── radiosmoltz_client.py        sources, mises à jour en place par
+│   ├── radiosmoltz_core.py          l'updater intégré du client
+│   ├── radiosmoltz_audio_io.py
+│   ├── radiosmoltz_sc_ocr.py
+│   ├── radiosmoltz_security.py
+│   ├── radiosmoltz_audio_rx_logger.py
+│   ├── radiosmoltz_admin.py         console d'admin (vient de server\)
+│   ├── radiosmoltz_version.json     version affichée + comparée au serveur
+│   ├── RadioSmoltz.ico
 │   ├── sounds\alarm.wav, ...
-│   └── (à l'usage) circusvoip_client_config.json, circusphone_*.json,
-│       circusvoip_profile_photo*, logs, ptt_press.wav / ptt_release.wav
+│   └── (à l'usage) radiosmoltz_client_config.json, circusphone_*.json,
+│       radiosmoltz_profile_photo*, logs, ptt_press.wav / ptt_release.wav
 └── runtime\
     ├── python.exe / pythonw.exe    CPython embarqué (python-build-standalone)
     └── Lib\site-packages\          PySide6, numpy, cv2, sounddevice, …
@@ -34,7 +34,7 @@ l'installateur Inno Setup, `[Files]` embarque `app/*` récursivement ») et
 ```
 
 Le raccourci du menu Démarrer lance
-`runtime\pythonw.exe "app\circusvoip_client.py"`. Aucun Python système n'est
+`runtime\pythonw.exe "app\radiosmoltz_client.py"`. Aucun Python système n'est
 requis sur la machine du joueur.
 
 ### Répartition client / serveur
@@ -44,16 +44,16 @@ pas au même endroit :
 
 | Interface | Source | Installeur | Pourquoi |
 |---|---|---|---|
-| Client de jeu | `client\circusvoip_client.py` | client | — |
-| **Console d'administration** | `server\circusvoip_admin.py` | **client** | elle administre un serveur **à distance** (`wss://…:8888` + token admin) : sa place est sur le poste de l'administrateur |
-| Serveur de positions (8888) | `server\circusvoip_server.py` | serveur | |
-| Serveur audio (8889) | `server\circusvoip_audio_server.py` | serveur | |
+| Client de jeu | `client\radiosmoltz_client.py` | client | — |
+| **Console d'administration** | `server\radiosmoltz_admin.py` | **client** | elle administre un serveur **à distance** (`wss://…:8888` + token admin) : sa place est sur le poste de l'administrateur |
+| Serveur de positions (8888) | `server\radiosmoltz_server.py` | serveur | |
+| Serveur audio (8889) | `server\radiosmoltz_audio_server.py` | serveur | |
 
 La console d'administration vit dans `server\` parce qu'elle parle le
 protocole d'administration du serveur, mais la machine qui héberge les
 serveurs est le plus souvent un VPS ou un `docker compose` — sans session
 graphique pour y afficher quoi que ce soit. Elle est donc **livrée avec le
-client**, où ses dépendances (websockets, tkinter, `circusvoip_security`) sont
+client**, où ses dépendances (websockets, tkinter, `radiosmoltz_security`) sont
 déjà présentes.
 
 Conséquence côté runtime : `tkinter` n'est plus élagué du runtime client
@@ -66,10 +66,10 @@ L'installeur serveur livre les **deux** serveurs et pose trois exécutables à l
 racine de l'installation :
 
 ```
-<InstallDir>\                       %LOCALAPPDATA%\CircusVOIP-Server par défaut
-├── CircusVOIP-Servers.exe          démarre les DEUX interfaces d'un coup
-├── CircusVOIP-Positions.exe        positions (8888) seul
-├── CircusVOIP-Audio.exe            audio (8889) seul
+<InstallDir>\                       %LOCALAPPDATA%\RadioSmoltz-Server par défaut
+├── RadioSmoltz-Servers.exe          démarre les DEUX interfaces d'un coup
+├── RadioSmoltz-Positions.exe        positions (8888) seul
+├── RadioSmoltz-Audio.exe            audio (8889) seul
 ├── app\
 └── runtime\
 ```
@@ -88,7 +88,7 @@ visible) puisque c'est justement le mode où le serveur n'a plus d'interface et
 n'écrit que sur la sortie standard :
 
 ```powershell
-.\CircusVOIP-Positions.exe --headless
+.\RadioSmoltz-Positions.exe --headless
 ```
 
 Ce que les lanceurs ne font **pas** : renommer le processus. Ils démarrent
@@ -142,7 +142,7 @@ winget install -e --id JRSoftware.InnoSetup
 ```
 
 Résultat dans `installer\out\` :
-`CircusVOIP_Client_Setup_v<version>.exe`. Si le canal n'est pas `stable`, le
+`RadioSmoltz_Client_Setup_v<version>.exe`. Si le canal n'est pas `stable`, le
 canal et le build sont suffixés (`…_v0.2.0-alpha057.exe`).
 
 Le premier build télécharge le runtime (~45 Mo) puis les wheels ; comptez
@@ -185,7 +185,7 @@ principal recommande une carte NVIDIA.
 Le choix se fait par un `extra-index-url` écrit dans `runtime\pip.ini`. pip lit
 ce fichier comme configuration « site » du préfixe, donc **tout** pip lancé
 avec ce runtime en hérite — y compris le bootstrap du client au premier
-lancement, sans toucher une ligne de `circusvoip_client.py`. Ça compte : les
+lancement, sans toucher une ligne de `radiosmoltz_client.py`. Ça compte : les
 sources sont écrasées par l'updater intégré depuis le manifeste du serveur, un
 patch dans le code ne survivrait pas. Une version locale PEP 440
 (`2.13.0+cu130`) l'emportant sur la version simple (`2.13.0`), un banal
@@ -213,7 +213,7 @@ En installation silencieuse : `/OCR=cpu`, `/OCR=cuda` ou `/OCR=skip` (sans
 paramètre, la détection NVIDIA décide).
 
 ```powershell
-.\CircusVOIP_Client_Setup_v0.2.0.exe /VERYSILENT /OCR=cpu
+.\RadioSmoltz_Client_Setup_v0.2.0.exe /VERYSILENT /OCR=cpu
 ```
 
 Pour changer d'avis après coup, éditer `runtime\pip.ini` et relancer
@@ -227,7 +227,7 @@ Pour changer d'avis après coup, éditer `runtime\pip.ini` et relancer
 `bundled` correspond à ce que fait l'amont : ses installeurs client pèsent
 163 Mo (v0.2.0) et 348 Mo (v0.3.0), bien trop peu pour contenir torch. Le
 client s'en charge lui-même au démarrage via son bootstrap pip
-(`_bootstrap_dependencies()` dans `circusvoip_client.py`), qui installe ce
+(`_bootstrap_dependencies()` dans `radiosmoltz_client.py`), qui installe ce
 qui manque avec `python -m pip install`. C'est pour ça que `pip` doit rester
 présent dans le runtime embarqué — ne pas l'élaguer.
 
@@ -269,11 +269,11 @@ sur la branche par défaut, donc le bouton *Run workflow* n'existe pas tant que
 la PR n'est pas mergée.
 
 > Le smoke test ne couvre que le client — il y vérifie aussi la présence de
-> `circusvoip_admin.py` et l'import de `tkinter`. L'installeur serveur est
+> `radiosmoltz_admin.py` et l'import de `tkinter`. L'installeur serveur est
 > construit et publié en artefact, mais rien ne vérifie encore son contenu ni
 > ses lanceurs.
 
-Le tag fait foi sur le numéro de version, pas `circusvoip_version.json` : ce
+Le tag fait foi sur le numéro de version, pas `radiosmoltz_version.json` : ce
 fichier est régulièrement en retard (côté serveur il est resté en 0.1.1 alors
 que la release publiée est en 0.3.0). Un tag qui ne correspond pas au motif
 `<composant>-vX.Y.Z` déclenche un warning et retombe sur le JSON.
@@ -285,7 +285,7 @@ attrapé là plutôt que par les joueurs. Le même script tourne en local :
 
 ```powershell
 $env:QT_QPA_PLATFORM = 'offscreen'
-& "$env:LOCALAPPDATA\CircusVOIP\runtime\python.exe" .\installer\smoke-test.py "$env:LOCALAPPDATA\CircusVOIP"
+& "$env:LOCALAPPDATA\RadioSmoltz\runtime\python.exe" .\installer\smoke-test.py "$env:LOCALAPPDATA\RadioSmoltz"
 ```
 
 Deux limites côté CI : `-Deps full -OcrBackend cuda` n'y est pas raisonnable
@@ -300,7 +300,7 @@ installeurs produits ne sont pas signés — voir plus bas.
 | `-Component client\|server\|both` | quoi construire |
 | `-Deps bundled\|full\|none` | cf. tableau ci-dessus |
 | `-OcrBackend cpu\|cuda` | variante de PyTorch (défaut `cpu`) |
-| `-Version 0.2.1 -Build 58 -Channel stable` | surcharge `circusvoip_version.json` |
+| `-Version 0.2.1 -Build 58 -Channel stable` | surcharge `radiosmoltz_version.json` |
 | `-PythonVersion 3.12` | série CPython embarquée |
 | `-FullQt` | wheel `PySide6` complet au lieu de `PySide6-Essentials` |
 | `-Clean` | vide `installer\work\` (re-extraction + réinstallation des deps) |
@@ -312,12 +312,12 @@ installeurs produits ne sont pas signés — voir plus bas.
 
 ### Les assets binaires ne sont pas dans le dépôt
 
-`StarCircus.ico` et `client/sounds/*.wav` n'ont jamais été versionnés
+`RadioSmoltz.ico` et `client/sounds/*.wav` n'ont jamais été versionnés
 (`client/sounds/` est même dans `.gitignore`).
 `make-placeholder-assets.py` génère donc :
 
-- les icônes manquantes (`StarCircus.ico`, `StarCircusAdmin.ico`,
-  `StarCircusServer.ico`) — étoile bleue sur disque, placeholder assumé ;
+- les icônes manquantes (`RadioSmoltz.ico`, `RadioSmoltzAdmin.ico`,
+  `RadioSmoltzServer.ico`) — étoile bleue sur disque, placeholder assumé ;
 - `sounds/alarm.wav` — sirène de synthèse, le son du soundboard étant le
   **seul** asset sans repli côté code.
 
@@ -335,9 +335,9 @@ distinctes dans le menu Démarrer et la barre des tâches :
 
 | Ce que vous déposez | Habille | Si absent |
 |---|---|---|
-| `client\StarCircus.ico` | le client de jeu | placeholder généré |
-| `client\StarCircusAdmin.ico` | la console d'administration | l'icône du client |
-| `server\StarCircusServer.ico` | les serveurs **et les trois lanceurs** | l'icône du client |
+| `client\RadioSmoltz.ico` | le client de jeu | placeholder généré |
+| `client\RadioSmoltzAdmin.ico` | la console d'administration | l'icône du client |
+| `server\RadioSmoltzServer.ico` | les serveurs **et les trois lanceurs** | l'icône du client |
 
 Les noms sont ceux que les `.iss` référencent, via la table `$ClientIcons` /
 `$ServerIcons` en tête de `build-installer.ps1`. En changer un des deux côtés
@@ -359,7 +359,7 @@ Le format doit être un vrai `.ico` — un `.png` renommé ne passera pas
 dialogue de l'installeur. Pour convertir depuis un PNG :
 
 ```powershell
-magick convert logo.png -define icon:auto-resize=256,48,32,16 client\StarCircus.ico
+magick convert logo.png -define icon:auto-resize=256,48,32,16 client\RadioSmoltz.ico
 ```
 
 Les `.ico` ne sont pas dans `.gitignore` (contrairement à `client/sounds/`) :
@@ -395,7 +395,7 @@ derrière elle. Le lanceur détermine tout :
 |---|---|---|
 | `runtime\pythonw.exe` | non | raccourcis menu Démarrer et Bureau, console d'administration, lancement en fin d'installation |
 | `runtime\python.exe` | oui | raccourci « console de diagnostic » (tâche optionnelle, décochée), téléchargement du moteur OCR |
-| `CircusVOIP-*.exe` (serveur) | non | compilés en sous-système GUI (`/target:winexe`), ils passent par `pythonw.exe` — sauf avec `--headless`, où ils basculent sur `python.exe` |
+| `RadioSmoltz-*.exe` (serveur) | non | compilés en sous-système GUI (`/target:winexe`), ils passent par `pythonw.exe` — sauf avec `--headless`, où ils basculent sur `python.exe` |
 
 Le client s'accommode très bien de l'absence de console : avec `pythonw`,
 `sys.stdout` vaut `None` et `print()` devient un no-op silencieux côté CPython
@@ -413,7 +413,7 @@ plantage. Dès que le moteur est présent, tout passe par `pythonw.exe`.
 
 ```powershell
 $s = (New-Object -ComObject WScript.Shell).CreateShortcut(
-    "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\CircusVOIP\CircusVOIP.lnk")
+    "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\RadioSmoltz\RadioSmoltz.lnk")
 $s.TargetPath = $s.TargetPath -replace 'python\.exe$', 'pythonw.exe'
 $s.Save()
 ```
@@ -467,8 +467,8 @@ et déclarer `mysigntool` dans les paramètres d'Inno Setup (`Tools` →
 ### Modules manquants dans l'arbre de travail
 
 Le script refuse de builder si un module attendu manque et affiche lesquels.
-C'est délibéré : `circusvoip_security.py` (contexte TLS) et
-`circusvoip_audio_rx_logger.py` (log audio RX) sont importés au runtime, et
+C'est délibéré : `radiosmoltz_security.py` (contexte TLS) et
+`radiosmoltz_audio_rx_logger.py` (log audio RX) sont importés au runtime, et
 une release amputée planterait chez les joueurs. Si les fichiers sont
 supprimés dans l'arbre de travail sans l'être dans le dépôt :
 
@@ -477,7 +477,7 @@ git restore client/
 ```
 
 La validation couvre aussi les modules repris dans l'autre dossier
-(`server\circusvoip_admin.py` pour le client) : le build échoue avant la copie,
+(`server\radiosmoltz_admin.py` pour le client) : le build échoue avant la copie,
 avec le nom du dossier où regarder.
 
 ### Mise à jour vs updater intégré
@@ -488,7 +488,7 @@ Deux mécanismes coexistent, indépendants :
   `runtime\` en conservant la configuration ;
 - **l'updater intégré du client** : interroge
   `http://<serveur>:8080/manifest.json` et remplace les `.py` un par un dans
-  `app\` (cf. `circusvoip_update_server.py` côté serveur).
+  `app\` (cf. `radiosmoltz_update_server.py` côté serveur).
 
 Après une release par installeur, régénérer le manifeste du serveur d'update
 pour que les deux versions concordent, sinon les clients retéléchargeront des
@@ -502,8 +502,8 @@ affiche sa propre demande d'autorisation pour `python.exe`. Sinon, dans une
 invite **administrateur** :
 
 ```powershell
-netsh advfirewall firewall add rule name="CircusVOIP positions 8888" dir=in action=allow protocol=TCP localport=8888 profile=private
-netsh advfirewall firewall add rule name="CircusVOIP audio 8889" dir=in action=allow protocol=TCP localport=8889 profile=private
+netsh advfirewall firewall add rule name="RadioSmoltz positions 8888" dir=in action=allow protocol=TCP localport=8888 profile=private
+netsh advfirewall firewall add rule name="RadioSmoltz audio 8889" dir=in action=allow protocol=TCP localport=8889 profile=private
 ```
 
 Rappel du README principal : exposer ces ports sur Internet expose le serveur
@@ -543,7 +543,7 @@ La chaîne a été exécutée de bout en bout sur Windows 11 x64 avec Inno Setup
 
 - build `-Deps none` et `-Deps bundled`, client et serveur, compilation ISCC OK ;
 - installation silencieuse (`/VERYSILENT /DIR=…`), layout `app\` + `runtime\`
-  conforme, `circusvoip_version.json` régénéré sans BOM et relu correctement ;
+  conforme, `radiosmoltz_version.json` régénéré sans BOM et relu correctement ;
 - import des 13 dépendances embarquées dans le runtime installé, y compris la
   création d'une `QApplication` (le plugin de plateforme Qt survit à
   l'élagage) ;
@@ -563,29 +563,29 @@ même façon :
 
 - installation silencieuse de l'installeur serveur (27,9 Mo), puis lancement
   des trois exécutables :
-  `CircusVOIP-Servers.exe` ouvre bien **deux** fenêtres
-  (« CircusVOIP — Serveur » et « CircusVOIP - Audio Server »),
-  `CircusVOIP-Positions.exe` et `CircusVOIP-Audio.exe` une seule chacun ;
+  `RadioSmoltz-Servers.exe` ouvre bien **deux** fenêtres
+  (« RadioSmoltz — Serveur » et « RadioSmoltz - Audio Server »),
+  `RadioSmoltz-Positions.exe` et `RadioSmoltz-Audio.exe` une seule chacun ;
 - aucune fenêtre de console dans les trois cas, et le port 8889 passe bien en
   écoute ;
-- `CircusVOIP-Positions.exe --headless` bascule bien sur `python.exe`, aucun
+- `RadioSmoltz-Positions.exe --headless` bascule bien sur `python.exe`, aucun
   `pythonw.exe` lancé, port 8888 en écoute : l'argument est transmis ;
-- payload serveur conforme — plus de `circusvoip_admin.py`, et un
+- payload serveur conforme — plus de `radiosmoltz_admin.py`, et un
   `[InstallDelete]` retire la copie orpheline laissée par les versions
   précédentes de l'installeur ;
 - désinstallation serveur : les trois lanceurs et `runtime\` supprimés, seuls
   les secrets et l'état généré à l'exécution (`cert.pem`, `key.pem`,
-  `circusvoip_server_config.json`, `circusvoip_admin_token.json`) restent —
+  `radiosmoltz_server_config.json`, `radiosmoltz_admin_token.json`) restent —
   volontairement ;
-- côté client, `circusvoip_admin.py` est bien embarqué, `tkinter` importable
+- côté client, `radiosmoltz_admin.py` est bien embarqué, `tkinter` importable
   dans le runtime élagué, et la console d'administration démarre depuis le
-  payload (fenêtre « CircusVOIP - Admin ») ;
+  payload (fenêtre « RadioSmoltz - Admin ») ;
 - les trois icônes atterrissent chacune à sa place, à l'octet près :
-  `StarCircus.ico` et `StarCircusAdmin.ico` dans le payload client,
-  `StarCircusServer.ico` dans celui du serveur, cette dernière étant aussi
+  `RadioSmoltz.ico` et `RadioSmoltzAdmin.ico` dans le payload client,
+  `RadioSmoltzServer.ico` dans celui du serveur, cette dernière étant aussi
   celle qu'embarquent les trois lanceurs et l'installeur serveur ;
 - les raccourcis résolvent bien deux icônes distinctes côté client
-  (`{app}\app\StarCircus.ico` pour le jeu, `{app}\app\StarCircusAdmin.ico`
+  (`{app}\app\RadioSmoltz.ico` pour le jeu, `{app}\app\RadioSmoltzAdmin.ico`
   pour la console), vérifié en compilant le `.iss` avec un `#pragma message` ;
 - `client\admin.png` (l'image source de l'icône admin) n'est pas embarquée :
   seuls les modules, les icônes déclarées et les sons le sont.
@@ -601,7 +601,7 @@ construits se trouvent dans `out\`. Ils ont été produits depuis les sources de
 | `build-installer.ps1` | orchestration : runtime, pip, staging, lanceurs, ISCC |
 | `client.iss` | script Inno Setup du client (+ console d'administration) |
 | `server.iss` | script Inno Setup du serveur (les deux serveurs) |
-| `launcher\launcher-template.cs` | modèle des lanceurs `CircusVOIP-*.exe`, compilé par `csc.exe` |
+| `launcher\launcher-template.cs` | modèle des lanceurs `RadioSmoltz-*.exe`, compilé par `csc.exe` |
 | `make-placeholder-assets.py` | génère les assets binaires manquants |
 | `smoke-test.py` | valide une installation (fichiers, imports, Qt, pip) |
 | `.cache\` | runtime PBS et installeur Inno téléchargés (non versionné) |
