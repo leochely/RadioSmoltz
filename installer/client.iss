@@ -73,20 +73,31 @@
 #endif
 
 #define AppName        "CircusVOIP"
-#define AppPublisher   "Kainan"
-#define AppUrl         "https://github.com/kainann/CircusVOIP"
+#define AppPublisher   "Leix"
+#define AppUrl         "https://github.com/leochely/CircusVOIP"
 #define ClientScript   "circusvoip_client.py"
 #define AdminScript    "circusvoip_admin.py"
-#define IconRelative   "app\StarCircus.ico"
-#define HasIcon        FileExists(AddBackslash(PayloadDir) + IconRelative)
 
-; Icone des raccourcis : StarCircus.ico si le payload en contient une, sinon on
-; retombe sur celle du runtime Python (le client, lui, ignore silencieusement
-; une icone absente).
+; Deux applications, deux icones : le client de jeu et la console
+; d'administration. Les noms sont ceux que build-installer.ps1 depose dans
+; app\ ($ClientIcons) -- les changer ici sans les changer la-bas ferait
+; retomber les raccourcis sur l'icone de python.exe.
+#define IconRelative      "app\StarCircus.ico"
+#define AdminIconRelative "app\StarCircusAdmin.ico"
+#define HasIcon           FileExists(AddBackslash(PayloadDir) + IconRelative)
+#define HasAdminIcon      FileExists(AddBackslash(PayloadDir) + AdminIconRelative)
+
+; Repli en cascade : icone dediee, sinon celle du client, sinon celle du
+; runtime Python (le client, lui, ignore silencieusement une icone absente).
 #if HasIcon
   #define ShortcutIcon "{app}\" + IconRelative
 #else
   #define ShortcutIcon "{app}\runtime\python.exe"
+#endif
+#if HasAdminIcon
+  #define AdminIcon "{app}\" + AdminIconRelative
+#else
+  #define AdminIcon ShortcutIcon
 #endif
 
 [Setup]
@@ -171,7 +182,7 @@ Name: "{group}\{#AppName} (console de diagnostic)"; Filename: "{app}\runtime\pyt
 ; sur le port 8888, et sert donc depuis le poste de l'administrateur -- pas
 ; depuis le VPS ou le conteneur qui heberge les serveurs. pythonw.exe : c'est
 ; une interface tkinter, elle n'a rien a dire sur stdout.
-Name: "{group}\Console d'administration"; Filename: "{app}\runtime\pythonw.exe"; Parameters: """{app}\app\{#AdminScript}"""; WorkingDir: "{app}\app"; IconFilename: "{#ShortcutIcon}"; Comment: "Administrer un serveur CircusVOIP a distance"
+Name: "{group}\Console d'administration"; Filename: "{app}\runtime\pythonw.exe"; Parameters: """{app}\app\{#AdminScript}"""; WorkingDir: "{app}\app"; IconFilename: "{#AdminIcon}"; Comment: "Administrer un serveur CircusVOIP a distance"
 
 Name: "{group}\Dossier d'installation"; Filename: "{app}"
 Name: "{group}\{cm:UninstallProgram,{#AppName}}"; Filename: "{uninstallexe}"

@@ -43,9 +43,13 @@
 #endif
 
 #define AppName      "CircusVOIP Server"
-#define AppPublisher "Kainan"
-#define AppUrl       "https://github.com/kainann/CircusVOIP"
-#define IconRelative "app\StarCircus.ico"
+#define AppPublisher "Leix"
+#define AppUrl       "https://github.com/leochely/CircusVOIP"
+; Nom depose par build-installer.ps1 ($ServerIcons) : le changer ici sans le
+; changer la-bas ferait retomber les raccourcis sur l'icone de python.exe.
+; C'est aussi cette icone qu'embarquent les trois lanceurs compiles, via le
+; /win32icon de csc.exe.
+#define IconRelative "app\StarCircusServer.ico"
 #define HasIcon      FileExists(AddBackslash(PayloadDir) + IconRelative)
 
 #if HasIcon
@@ -109,18 +113,10 @@ Source: "{#PayloadDir}\runtime\*"; DestDir: "{app}\runtime"; Flags: recursesubdi
 ; resout runtime\ et app\ relativement a sa propre position.
 Source: "{#PayloadDir}\bin\*.exe"; DestDir: "{app}"; Flags: ignoreversion
 
-[InstallDelete]
-; Les versions precedentes de l'installeur serveur livraient la console
-; d'administration. Elle est passee cote client : sans ca, une mise a jour
-; laisserait un circusvoip_admin.py orphelin -- une copie figee qui ne serait
-; plus jamais mise a jour, mais que son ancien raccourci lancerait encore.
-; Son fichier de config, lui, reste : l'utilisateur y a saisi son token.
-Type: files; Name: "{app}\app\circusvoip_admin.py"
-Type: files; Name: "{app}\app\__pycache__\circusvoip_admin.*.pyc"
-; Idem pour les raccourcis renommes ou supprimes : Inno ne nettoie pas ceux
-; d'une version precedente qui ne figurent plus dans [Icons].
-Type: files; Name: "{group}\Console admin.lnk"
-Type: files; Name: "{autodesktop}\CircusVOIP Serveur.lnk"
+; Pas de section [InstallDelete] : cet installeur cible des installations
+; neuves. La console d'administration etait livree ici avant de passer cote
+; client, mais aucune release publique n'a embarque cette version-la, donc il
+; n'y a pas de copie orpheline a nettoyer chez qui que ce soit.
 
 [Icons]
 ; Les raccourcis pointent sur les lanceurs, pas sur python.exe : le premier

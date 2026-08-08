@@ -8,9 +8,11 @@ sans jamais ecraser un fichier existant.
 
 Ce qui est genere, et pourquoi :
 
-  StarCircus.ico   Icone de fenetre / barre des taches. Le client l'ignore
+  <icone>.ico      Icone de fenetre / barre des taches. Le client l'ignore
                    silencieusement si absente, mais Inno Setup s'en sert
-                   aussi comme icone de l'installeur et des raccourcis.
+                   aussi comme icone de l'installeur et des raccourcis, et
+                   les lanceurs serveur l'embarquent au moment de leur
+                   compilation. Cf. --icon-name.
   sounds/alarm.wav Son du soundboard. SEUL asset sans repli cote code :
                    sans le fichier, le bouton est inutilisable.
 
@@ -21,11 +23,17 @@ dans circusvoip_audio_io.py), et un placeholder serait moins bon que le repli.
 Les WAV sont ecrits en PCM 16 bits mono 48 kHz : c'est le seul format que
 _load_wav_as_float32 accepte sans conversion.
 
-Usage : python make-placeholder-assets.py [--icon-only] <dossier_app>
+Usage : python make-placeholder-assets.py [options] <dossier_app>
 
---icon-only sert au payload serveur : celui-ci a besoin de l'icone (pour
-l'installeur, les raccourcis et les lanceurs compiles) mais n'a ni soundboard
-ni sonneries.
+  --icon-only        ne genere que l'icone (payload serveur : pas de
+                     soundboard ni de sonneries a remplacer)
+  --sounds-only      ne genere que les sons
+  --icon-name NOM    nom du fichier icone a creer (defaut StarCircus.ico)
+
+--icon-name existe parce qu'un payload embarque plusieurs icones :
+StarCircus.ico pour le client, StarCircusAdmin.ico pour la console
+d'administration, StarCircusServer.ico cote serveur. Chacune peut manquer
+independamment des autres.
 """
 
 import math
@@ -187,24 +195,36 @@ def _write_ico(path: Path, sizes=(16, 32, 48, 256)) -> None:
 # ----------------------------------------------------------------------
 
 def main() -> int:
-    argv = [a for a in sys.argv[1:] if a != "--icon-only"]
-    icon_only = "--icon-only" in sys.argv
-    if not argv:
-        print("usage: make-placeholder-assets.py [--icon-only] <dossier_app>")
+    args = sys.argv[1:]
+    icon_only = "--icon-only" in args
+    sounds_only = "--sounds-only" in args
+    icon_name = "StarCircus.ico"
+    if "--icon-name" in args:
+        i = args.index("--icon-name")
+        if i + 1 >= len(args):
+            print("[ASSETS] --icon-name attend un nom de fichier")
+            return 2
+        icon_name = args[i + 1]
+        del args[i:i + 2]
+    positional = [a for a in args if not a.startswith("--")]
+    if not positional:
+        print("usage: make-placeholder-assets.py [--icon-only] [--sounds-only] "
+              "[--icon-name NOM] <dossier_app>")
         return 2
-    app_dir = Path(argv[0]).resolve()
+    app_dir = Path(positional[0]).resolve()
     if not app_dir.is_dir():
         print(f"[ASSETS] Dossier introuvable : {app_dir}")
         return 1
 
     created = []
 
-    ico = app_dir / "StarCircus.ico"
-    if ico.exists():
-        print(f"[ASSETS] Conserve : {ico.name}")
-    else:
-        _write_ico(ico)
-        created.append(ico.name)
+    if not sounds_only:
+        ico = app_dir / icon_name
+        if ico.exists():
+            print(f"[ASSETS] Conserve : {ico.name}")
+        else:
+            _write_ico(ico)
+            created.append(ico.name)
 
     # --icon-only : payload serveur. Il n'a ni soundboard ni sonneries, mais
     # il a besoin de l'icone -- pour l'installeur, les raccourcis et les

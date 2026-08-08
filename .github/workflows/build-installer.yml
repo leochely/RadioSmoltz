@@ -93,11 +93,6 @@ jobs:
           if (-not $deps) { $deps = 'bundled' }
           if (-not $ocr)  { $ocr  = 'cpu' }
 
-          # Le tag fait foi sur la version : circusvoip_version.json est
-          # regulierement en retard sur les releases publiees (le fichier
-          # serveur est reste en 0.1.1 alors que la release est en 0.3.0).
-          # Sans ca, le .exe publie sous le tag client-v0.3.0 s'appellerait
-          # CircusVOIP_Client_Setup_v0.2.0.exe.
           $version = ''
           if ($isTag -and $tag -match '^(client|server)-v(\d+\.\d+(\.\d+)?)$') {
             $version = $Matches[2]

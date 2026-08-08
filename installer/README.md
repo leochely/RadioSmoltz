@@ -316,7 +316,8 @@ installeurs produits ne sont pas signés — voir plus bas.
 (`client/sounds/` est même dans `.gitignore`).
 `make-placeholder-assets.py` génère donc :
 
-- `StarCircus.ico` — étoile bleue sur disque, placeholder assumé ;
+- les icônes manquantes (`StarCircus.ico`, `StarCircusAdmin.ico`,
+  `StarCircusServer.ico`) — étoile bleue sur disque, placeholder assumé ;
 - `sounds/alarm.wav` — sirène de synthèse, le son du soundboard étant le
   **seul** asset sans repli côté code.
 
@@ -326,19 +327,31 @@ client synthétise ses propres motifs quand ils manquent
 
 #### Utiliser ses propres assets
 
-Il suffit de les déposer dans l'arbre de travail : rien n'est jamais écrasé,
-le placeholder n'est généré que si le fichier manque.
+Il suffit de les déposer dans l'arbre de travail : rien n'est jamais écrasé, le
+placeholder n'est généré que pour ce qui manque.
 
-| Ce que vous déposez | Utilisé par |
+**Une icône par application** — les trois interfaces sont visuellement
+distinctes dans le menu Démarrer et la barre des tâches :
+
+| Ce que vous déposez | Habille | Si absent |
+|---|---|---|
+| `client\StarCircus.ico` | le client de jeu | placeholder généré |
+| `client\StarCircusAdmin.ico` | la console d'administration | l'icône du client |
+| `server\StarCircusServer.ico` | les serveurs **et les trois lanceurs** | l'icône du client |
+
+Les noms sont ceux que les `.iss` référencent, via la table `$ClientIcons` /
+`$ServerIcons` en tête de `build-installer.ps1`. En changer un des deux côtés
+sans l'autre fait retomber les raccourcis sur l'icône de `python.exe`.
+
+L'icône principale de chaque composant — la première entrée de sa table — sert
+en plus à l'installeur lui-même (`SetupIconFile`) et à son entrée
+« Applications installées ». Côté serveur, c'est aussi elle que les lanceurs
+embarquent, via le `/win32icon` de `csc.exe` : elle est donc figée dans les
+`.exe` à la compilation, pas lue à l'exécution.
+
+| Sons | Utilisé par |
 |---|---|
-| `client\StarCircus.ico` | le client **et**, à défaut d'icône propre, le serveur |
-| `server\StarCircus.ico` | le serveur seul (prioritaire sur celle du client) |
 | `client\sounds\*.wav` | le client (`alarm.wav`, `ring.wav`, `dial.wav`, `notif.wav`) |
-
-Une seule icône dans `client\` suffit donc à habiller les deux installeurs.
-Elle sert à quatre choses : icône des fenêtres, des raccourcis, de
-l'installeur lui-même (`SetupIconFile`) et des lanceurs serveur, ces derniers
-la recevant via `/win32icon` au moment de la compilation.
 
 Le format doit être un vrai `.ico` — un `.png` renommé ne passera pas
 `/win32icon`. Prévoir plusieurs tailles dans le fichier (16, 32, 48, 256), le
@@ -353,9 +366,8 @@ Les `.ico` ne sont pas dans `.gitignore` (contrairement à `client/sounds/`) :
 une icône déposée là est versionnable, et tous les builds — y compris ceux de
 GitHub Actions — l'utiliseront. Sans ça, la CI reproduit le placeholder.
 
-Après changement d'icône, rebuilder avec `-Clean` n'est pas nécessaire, mais
-les lanceurs serveur doivent être recompilés : ils le sont à chaque build, donc
-un simple `-Component server` suffit.
+Après changement d'icône, `-Clean` n'est pas nécessaire : le payload `app\` est
+reconstruit et les lanceurs recompilés à chaque build.
 
 ### La suppression de bruit (pyrnnoise) n'est pas embarquée
 
@@ -567,7 +579,16 @@ même façon :
   volontairement ;
 - côté client, `circusvoip_admin.py` est bien embarqué, `tkinter` importable
   dans le runtime élagué, et la console d'administration démarre depuis le
-  payload (fenêtre « CircusVOIP - Admin »).
+  payload (fenêtre « CircusVOIP - Admin ») ;
+- les trois icônes atterrissent chacune à sa place, à l'octet près :
+  `StarCircus.ico` et `StarCircusAdmin.ico` dans le payload client,
+  `StarCircusServer.ico` dans celui du serveur, cette dernière étant aussi
+  celle qu'embarquent les trois lanceurs et l'installeur serveur ;
+- les raccourcis résolvent bien deux icônes distinctes côté client
+  (`{app}\app\StarCircus.ico` pour le jeu, `{app}\app\StarCircusAdmin.ico`
+  pour la console), vérifié en compilant le `.iss` avec un `#pragma message` ;
+- `client\admin.png` (l'image source de l'icône admin) n'est pas embarquée :
+  seuls les modules, les icônes déclarées et les sons le sont.
 
 Un installeur client (0.2.0, `bundled`) et un installeur serveur déjà
 construits se trouvent dans `out\`. Ils ont été produits depuis les sources de

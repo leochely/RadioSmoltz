@@ -217,11 +217,33 @@ $ServerLaunchers = @(
        Scripts = @('circusvoip_audio_server.py') }
 )
 
+# Icones embarquees dans app\, par composant. Chaque application a la sienne :
+# le client, la console d'administration livree avec lui, et les serveurs.
+#
+# 'Name' est le nom dans le payload -- c'est celui que les .iss referencent, ne
+# pas le changer sans les mettre a jour. 'Candidates' est essaye dans l'ordre,
+# chemins relatifs a la racine du depot ; le dernier fait office de repli quand
+# l'icone dediee n'a pas ete fournie. Si aucun candidat n'existe, un
+# placeholder est genere sous ce nom.
+#
+# La PREMIERE entree est l'icone principale du composant : celle de
+# l'installeur (SetupIconFile), de l'entree "Applications installees" et, cote
+# serveur, celle qu'embarquent les lanceurs compiles.
+$ClientIcons = @(
+    @{ Name = 'StarCircus.ico'
+       Candidates = @('client\StarCircus.ico') },
+    @{ Name = 'StarCircusAdmin.ico'
+       Candidates = @('client\StarCircusAdmin.ico', 'client\StarCircus.ico') }
+)
+$ServerIcons = @(
+    @{ Name = 'StarCircusServer.ico'
+       Candidates = @('server\StarCircusServer.ico', 'client\StarCircus.ico') }
+)
+
 # Assets optionnels : le code a un fallback silencieux pour chacun (sonneries
 # telephone synthetisees si les wav manquent), sauf alarm.wav dont le
-# soundboard n'a pas de fallback.
-# L'icone n'est pas listee ici : elle est reprise pour les deux composants,
-# cf. New-AppPayload.
+# soundboard n'a pas de fallback. Les icones sont traitees a part, cf.
+# $ClientIcons / $ServerIcons.
 $ClientSounds = @(
     'ring.wav',      # sonnerie destinataire  (fallback synth)
     'dial.wav',      # tonalite appelant      (fallback synth)
@@ -775,23 +797,6 @@ function New-AppPayload {
         (New-Object System.Text.UTF8Encoding($false))
     )
 
-    # L'icone concerne les DEUX composants : fenetres, raccourcis, icone de
-    # l'installeur lui-meme, et /win32icon des lanceurs serveur. Cote serveur
-    # on accepte une icone propre dans server\, sinon on reprend celle du
-    # client pour que les deux installeurs se ressemblent. Sans aucune des
-    # deux, Add-PlaceholderAssets genere la sienne.
-    $iconCandidates = @(Join-Path $SourceDir 'StarCircus.ico')
-    if (-not $IsClient) {
-        $iconCandidates += (Join-Path $RepoRoot 'client\StarCircus.ico')
-    }
-    foreach ($cand in $iconCandidates) {
-        if (Test-Path -LiteralPath $cand) {
-            Copy-Item -LiteralPath $cand -Destination (Join-Path $AppDir 'StarCircus.ico') -Force
-            Write-Note "Icone : $cand"
-            break
-        }
-    }
-
     if (-not $IsClient) { return }
 
     $soundsSrc = Join-Path $SourceDir 'sounds'
@@ -808,28 +813,73 @@ function New-AppPayload {
     # bips personnalises a chaque mise a jour.
 }
 
-function Add-PlaceholderAssets {
+function Get-PlaceholderScript {
+    $gen = Join-Path $ScriptDir 'make-placeholder-assets.py'
+    if (-not (Test-Path -LiteralPath $gen)) {
+        Write-Warn 'make-placeholder-assets.py absent : assets manquants non generes.'
+        return $null
+    }
+    return $gen
+}
+
+function Add-PayloadIcons {
+    <#
+        Depose dans app\ les icones declarees pour le composant.
+
+        Chaque entree est resolue depuis sa liste de candidats (chemins
+        relatifs a la racine du depot, essayes dans l'ordre) ; ce qui reste
+        introuvable est remplace par un placeholder genere sous le nom attendu,
+        pour que les .iss trouvent toujours le fichier qu'ils referencent.
+    #>
     param(
         [Parameter(Mandatory = $true)][string]$AppDir,
         [Parameter(Mandatory = $true)][string]$RuntimeDir,
-        # Cote serveur, seule l'icone a un sens : pas de soundboard, donc pas
-        # de sounds\alarm.wav a generer.
-        [switch]$IconOnly
+        [Parameter(Mandatory = $true)][array]$Icons
+    )
+    $missing = @()
+    foreach ($icon in $Icons) {
+        $resolved = $null
+        foreach ($cand in $icon.Candidates) {
+            $src = Join-Path $RepoRoot $cand
+            if (Test-Path -LiteralPath $src) { $resolved = @{ Path = $src; Rel = $cand }; break }
+        }
+        if ($resolved) {
+            Copy-Item -LiteralPath $resolved.Path -Destination (Join-Path $AppDir $icon.Name) -Force
+            Write-Note "Icone $($icon.Name) <- $($resolved.Rel)"
+        } else {
+            $missing += $icon.Name
+        }
+    }
+
+    if ($missing.Count -eq 0) { return }
+    if ($NoPlaceholders) {
+        Write-Warn "Icones absentes et placeholders desactives : $($missing -join ', ')"
+        Write-Warn 'Les raccourcis retomberont sur l''icone de python.exe.'
+        return
+    }
+    $gen = Get-PlaceholderScript
+    if (-not $gen) { return }
+    $py = Join-Path $RuntimeDir 'python.exe'
+    foreach ($name in $missing) {
+        Invoke-Native -FilePath $py -What 'make-placeholder-assets.py' `
+            -Arguments @($gen, $AppDir, '--icon-only', '--icon-name', $name)
+    }
+}
+
+function Add-PlaceholderSounds {
+    param(
+        [Parameter(Mandatory = $true)][string]$AppDir,
+        [Parameter(Mandatory = $true)][string]$RuntimeDir
     )
     if ($NoPlaceholders) {
         Write-Note 'Placeholders desactives (-NoPlaceholders).'
         return
     }
-    $gen = Join-Path $ScriptDir 'make-placeholder-assets.py'
-    if (-not (Test-Path -LiteralPath $gen)) {
-        Write-Warn "make-placeholder-assets.py absent : assets manquants non generes."
-        return
-    }
+    $gen = Get-PlaceholderScript
+    if (-not $gen) { return }
     $py = Join-Path $RuntimeDir 'python.exe'
-    # Pas $args : c'est une variable automatique de PowerShell.
-    $genArgs = @($gen, $AppDir)
-    if ($IconOnly) { $genArgs += '--icon-only' }
-    Invoke-Native -FilePath $py -What 'make-placeholder-assets.py' -Arguments $genArgs
+    Invoke-Native -FilePath $py -What 'make-placeholder-assets.py' `
+        -Arguments @($gen, $AppDir, '--sounds-only')
 }
 
 # ----------------------------------------------------------------------
@@ -1136,13 +1186,16 @@ function Build-Component {
     Write-Step "Build $Name : payload app\"
     New-AppPayload -SourceDir $sourceDir -AppDir $appDir -Modules $modules `
         -ExtraModules $extras -VersionInfo $verInfo -IsClient:$isClient
-    # L'icone sert aussi bien aux raccourcis et a l'installeur qu'aux lanceurs
-    # compiles ci-dessous, d'ou sa generation des deux cotes.
-    Add-PlaceholderAssets -AppDir $appDir -RuntimeDir $runtime -IconOnly:(-not $isClient)
+    if ($isClient) { $icons = $ClientIcons } else { $icons = $ServerIcons }
+    Add-PayloadIcons -AppDir $appDir -RuntimeDir $runtime -Icons $icons
+    if ($isClient) {
+        Add-PlaceholderSounds -AppDir $appDir -RuntimeDir $runtime
+    }
 
     if (-not $isClient) {
         Write-Step "Build $Name : lanceurs .exe"
-        $icon = Join-Path $appDir 'StarCircus.ico'
+        # Icone principale du composant = premiere entree de $ServerIcons.
+        $icon = Join-Path $appDir $ServerIcons[0].Name
         New-Launchers -BinDir $binDir -Launchers $ServerLaunchers -IconPath $icon
     }
 
