@@ -1,0 +1,4 @@
+# Artefacts de build (cf. installer/README.md)
+.cache/
+work/
+out/

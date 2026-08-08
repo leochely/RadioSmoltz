@@ -1,5 +1,5 @@
 # =============================================
-#  CircusVOIP Server - image Docker
+#  RadioSmoltz Server - image Docker
 # =============================================
 # Image legere pour heberger les deux processus serveur (positions + audio)
 # sur un VPS Linux. Le client n'est PAS conteneurise (GUI Windows + capture
@@ -35,4 +35,4 @@ VOLUME ["/data"]
 
 # Par defaut, on lance le serveur positions. docker-compose.yml override
 # pour lancer aussi le serveur audio dans un second container.
-CMD ["python", "circusvoip_server.py", "--headless"]
+CMD ["python", "radiosmoltz_server.py", "--headless"]

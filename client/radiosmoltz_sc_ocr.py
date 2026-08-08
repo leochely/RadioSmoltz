@@ -1,12 +1,12 @@
 """
-circusvoip_sc_ocr - Module OCR Star Citizen autonome
+radiosmoltz_sc_ocr - Module OCR Star Citizen autonome
 ====================================================
 
 Lit le HUD de Star Citizen pour en extraire la position du joueur :
 zone (nom de l'objet stellaire / station) et coordonnees X, Y, Z.
 
 Module independant, reutilisable. Aucune dependance a une UI ou a un
-etat global d'application. Convient pour CircusVOIP (VOIP positionnel)
+etat global d'application. Convient pour RadioSmoltz (VOIP positionnel)
 ou pour toute autre application ayant besoin de la position du joueur
 dans Star Citizen (course, telemetrie, mods, etc.).
 
@@ -15,7 +15,7 @@ Dependances : mss, numpy, opencv-python, easyocr, pytesseract (optionnel),
 
 Utilisation typique :
 
-    import circusvoip_sc_ocr as scocr
+    import radiosmoltz_sc_ocr as scocr
 
     def on_pos(pos):
         # pos = {"zone": "Levski_v2_middeck", "x": 371.0, "y": -102.0, "z": -434.0}
@@ -86,7 +86,7 @@ Initialisation et acces moteur OCR :
     get_minus_was_restored() Indique si la derniere lecture OCR a beneficie
                              de la restauration visuelle des tirets.
 
-Helpers de filtrage / validation / parsing (consommes par circusvoip_core
+Helpers de filtrage / validation / parsing (consommes par radiosmoltz_core
 et par les forks externes pour reutiliser la logique metier sans
 reimplementer le parsing) :
     parse_coords(text)           Parse interne complet (regex multi-passes,
@@ -2659,7 +2659,7 @@ def _parse_coords(text: str):
 
     """
     # (Neutralise pour ce module : le debug d'ecriture last_coords.txt
-    # est utile dans CircusVOIP mais polluerait un module reutilisable.
+    # est utile dans RadioSmoltz mais polluerait un module reutilisable.
     # Pour le reactiver, brancher un logger via set_logger().)
 
     # Tronquer au 1er '|' : EasyOCR insere ce caractere entre deux lignes quand
@@ -3239,7 +3239,7 @@ def parse_ocr_text(text: str) -> Optional[dict]:
     si aucune correspondance valide.
 
     Wrapper public au-dessus de _parse_coords (qui retourne un dict plus
-    riche avec container_id, location, etc., utiles pour CircusVOIP).
+    riche avec container_id, location, etc., utiles pour RadioSmoltz).
     Pour acceder a ces infos supplementaires, appeler _parse_coords()
     directement.
 
@@ -3288,7 +3288,7 @@ def distance(a: dict, b: dict) -> float:
     """Distance euclidienne 3D entre deux positions {x, y, z}, en metres.
     La cle 'zone' (si presente) est ignoree.
 
-    Note : ne considere PAS les containers / vaisseaux. Pour CircusVOIP
+    Note : ne considere PAS les containers / vaisseaux. Pour RadioSmoltz
     qui a une logique container-aware, utilisez votre propre fonction
     distance qui regarde container_id avant d'appeler celle-ci."""
     import math as _m
@@ -3322,12 +3322,12 @@ def compute_proximity_volume(
       a 15m -> 0.36) tout en gardant une longue queue audible jusqu'a
       30m. Plus naturelle car proche de la perception humaine du volume.
 
-    Note : contrairement a la version d'origine de CircusVOIP, cette
+    Note : contrairement a la version d'origine de RadioSmoltz, cette
     fonction ne consulte pas d'etat global. Le caller est responsable
     de passer force_short=True si l'emetteur est en chuchotement.
 
     IMPORTANT : si on modifie cette formule, modifier aussi
-    _proximity_volume dans circusvoip_mannequin.py pour que les volumes
+    _proximity_volume dans radiosmoltz_mannequin.py pour que les volumes
     calcules par le mannequin et le client restent identiques."""
     if force_short:
         return 1.0 if d <= 5.0 else 0.0
@@ -3430,12 +3430,12 @@ def enable_debug_screens(directory: "str | _DbgPath" = None) -> None:
     
     Args:
         directory: dossier de destination. Si None, utilise
-            ./circusvoip_debug/ a cote du script. Cree le dossier
+            ./radiosmoltz_debug/ a cote du script. Cree le dossier
             si necessaire.
     """
     global _DEBUG_SCREENS_ENABLED, _DEBUG_SCREENS_DIR
     if directory is None:
-        directory = _DbgPath(__file__).resolve().parent / "circusvoip_debug"
+        directory = _DbgPath(__file__).resolve().parent / "radiosmoltz_debug"
     else:
         directory = _DbgPath(directory)
     try:
@@ -3500,7 +3500,7 @@ _minus_debug_save_count = 0
 _MINUS_DEBUG_MAX_SAVES = 50
 _NUMBER_BBOX_RX = re.compile(r'\d')
 
-# Hook de log systeme metrics. Branche par circusvoip_core via
+# Hook de log systeme metrics. Branche par radiosmoltz_core via
 # set_log_system_metrics(). En mode autonome (module utilise sans le
 # core), reste un no-op silencieux.
 _log_system_metrics: Callable[[str], None] = lambda label='': None
@@ -4738,7 +4738,7 @@ class SCOCRReader:
 
         Le module fournit son propre pipeline OCR autonome (capture mss
         + EasyOCR + correction des signes -) qui ne depend pas du module
-        circusvoip_client. Utilisable depuis n'importe quel projet."""
+        radiosmoltz_client. Utilisable depuis n'importe quel projet."""
         if self.is_running():
             return
         self._stop_evt.clear()
@@ -4866,7 +4866,7 @@ class SCOCRReader:
 # read_coords, parse_ocr_text, distance, list_monitors, auto_ocr_zone,
 # set_logger, set_cache_dir, capture_region, compute_proximity_volume,
 # ocr_texts_from_region). Mais certaines fonctions internes etaient en
-# realite consommees par circusvoip_core.py et par des forks externes -
+# realite consommees par radiosmoltz_core.py et par des forks externes -
 # typiquement les correcteurs de signe et les comparateurs de zones. On
 # les exposait via leur nom prive (prefixe _), ce qui rend les forks plus
 # fragiles aux refactos internes.
@@ -4877,8 +4877,8 @@ class SCOCRReader:
 # existants. Les forks et nouveau code peuvent utiliser les noms publics.
 #
 # Symboles concernes (consommes par engine.py de circus_ocr, par
-# circusvoip_circus_ocr_client.py du fork firesstones, ou par
-# circusvoip_core.py) :
+# radiosmoltz_circus_ocr_client.py du fork firesstones, ou par
+# radiosmoltz_core.py) :
 #   - ensure_imaging         (= _ensure_imaging)
 #   - get_easy_ocr           (= _get_easy_ocr)
 #   - easy_ocr_image         (= _easy_ocr_image)
@@ -4933,6 +4933,6 @@ def get_minus_was_restored() -> bool:
     a chaque nouvelle lecture par read_coords().
 
     Exposition publique propre de la variable module _minus_was_restored,
-    consommee par engine.py de circus_ocr et par circusvoip_core.
+    consommee par engine.py de circus_ocr et par radiosmoltz_core.
     """
     return bool(_minus_was_restored)

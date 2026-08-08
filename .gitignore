@@ -22,16 +22,16 @@ build/
 # Server secrets / runtime state (generated at first launch)
 cert.pem
 key.pem
-circusvoip_auth_tickets.json
-circusvoip_admin_token.json
-circusvoip_server_config.json
-circusvoip_channels.json
-circusvoip_profiles.json
-circusvoip_broadcasters.json
-circusvoip_admin_config.json
+radiosmoltz_auth_tickets.json
+radiosmoltz_admin_token.json
+radiosmoltz_server_config.json
+radiosmoltz_channels.json
+radiosmoltz_profiles.json
+radiosmoltz_broadcasters.json
+radiosmoltz_admin_config.json
 
 # Client runtime state
-client/circusvoip_client_config.json
+client/radiosmoltz_client_config.json
 client/sounds/
 
 # IDE

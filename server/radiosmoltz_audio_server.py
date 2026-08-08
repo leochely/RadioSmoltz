@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # =============================================
-#  CircusVOIP Audio Server (PATCHE SECURITE)
+#  RadioSmoltz Audio Server (PATCHE SECURITE)
 # =============================================
 # Serveur WebSocket qui relaie les flux audio entre clients.
 # Port 8889 (different du serveur positions sur 8888).
@@ -9,7 +9,7 @@
 # Le serveur les relaie a tous les autres clients (pas a l'emetteur lui-meme).
 # Le client destinataire applique le volume localement selon la distance.
 #
-# Lance : py -3.14 circusvoip_audio_server.py
+# Lance : py -3.14 radiosmoltz_audio_server.py
 # Deps  : pip install websockets numpy
 #
 # PATCHES SECURITE appliques :
@@ -42,11 +42,11 @@ except ImportError:
     print("Installez websockets : py -3.14 -m pip install websockets")
     exit(1)
 
-from circusvoip_server_config import get_token
+from radiosmoltz_server_config import get_token
 
 # [SECURITE] Module commun (lockout, rate limiting, registre de tickets,
 # helper TLS). Doit etre present dans le meme dossier que ce fichier.
-from circusvoip_security import AuthLockout, RateLimiter, AuthRegistry
+from radiosmoltz_security import AuthLockout, RateLimiter, AuthRegistry
 
 # ---------------------------------------------
 #  Config
@@ -82,17 +82,17 @@ _audio_rate = RateLimiter(rate=120.0, burst=240.0)
 # [P4 - auth partagee] Registre de tickets partage avec le serveur
 # positions. Un client doit presenter un ticket emis par le serveur
 # positions pour etre accepte ici. Meme fichier des deux cotes.
-_AUTH_REGISTRY_FILE = Path(__file__).resolve().parent / "circusvoip_auth_tickets.json"
+_AUTH_REGISTRY_FILE = Path(__file__).resolve().parent / "radiosmoltz_auth_tickets.json"
 _auth_registry = AuthRegistry(_AUTH_REGISTRY_FILE, ttl_sec=120.0)
 
 # === Log fichier debug crackling (ajout 25/05/2026) ===
 # Tous les logs ui.log() ainsi que update_stats() sont aussi ecrits dans
-# un fichier dedie /var/log/circusvoip-audio/audio_YYYYMMDD_HHMMSS.log.
+# un fichier dedie /var/log/radiosmoltz-audio/audio_YYYYMMDD_HHMMSS.log.
 # Un fichier par demarrage du service (Option 3 : facile a correler avec
 # les logs debug clients qui suivent le meme schema).
 # Fallback silencieux : si le dossier n'existe pas ou n'est pas accessible
 # en ecriture, on log uniquement sur stdout comme aujourd'hui. Pas de crash.
-_LOG_DIR = Path("/var/log/circusvoip-audio")
+_LOG_DIR = Path("/var/log/radiosmoltz-audio")
 _log_file_handle = None     # writeable text handle ou None si echec ouverture
 _log_file_path   = None     # Path pour info au demarrage
 
@@ -262,7 +262,7 @@ async def handler(ws, ui):
                 # n'a pas la capability. Sans ce filtre, n'importe quel
                 # client pourrait fabriquer une trame 0x04 et etre entendu
                 # sur tous les canaux radio simultanement (cf filtrage
-                # cote receveur dans circusvoip_core.py qui accepte 0x04
+                # cote receveur dans radiosmoltz_core.py qui accepte 0x04
                 # sans verifier le canal). On enforce ici parce que c'est
                 # le seul endroit ou on a a la fois la trame ET l'identite
                 # authentifiee de l'emetteur (via le ticket).
@@ -508,17 +508,17 @@ async def _serve(ui):
     # ─────────────────────────────────────────────
     # Le serveur audio ecoute en wss:// (chiffre), avec le MEME certificat
     # que le serveur positions (cert.pem / key.pem partages dans le meme
-    # dossier). Si circusvoip_server.py a deja demarre, le cert existe ;
+    # dossier). Si radiosmoltz_server.py a deja demarre, le cert existe ;
     # sinon ensure_self_signed_cert le cree.
     #
     # En cas d'echec de generation, le serveur audio REFUSE de demarrer
     # plutot que d'accepter en clair (la VoIP serait alors lisible par
     # quiconque ecoute le reseau).
-    from circusvoip_security import ensure_self_signed_cert, build_ssl_context
+    from radiosmoltz_security import ensure_self_signed_cert, build_ssl_context
     _base_dir = Path(__file__).resolve().parent
     _cert_file = _base_dir / "cert.pem"
     _key_file = _base_dir / "key.pem"
-    _ok, _detail = ensure_self_signed_cert(_cert_file, _key_file, common_name="circusvoip-audio")
+    _ok, _detail = ensure_self_signed_cert(_cert_file, _key_file, common_name="radiosmoltz-audio")
     if not _ok:
         ui.log(f"[FATAL] Impossible de generer le certificat TLS. Detail : {_detail}")
         state.running = False
@@ -556,24 +556,24 @@ def _run_server(ui):
 class ServerUI:
     def __init__(self):
         # Forcer un AppUserModelID distinct sur Windows AVANT tk.Tk().
-        # Permet a Windows d'utiliser notre icone StarCircus_Server.ico
+        # Permet a Windows d'utiliser notre icone RadioSmoltz_Server.ico
         # dans la taskbar au lieu de l'icone Python par defaut.
         try:
             import ctypes
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
-                "CircusVOIP.AudioServer.0.1"
+                "RadioSmoltz.AudioServer.0.1"
             )
         except Exception:
             pass
 
         self.root = tk.Tk()
-        self.root.title("CircusVOIP - Audio Server 0.1")
+        self.root.title("RadioSmoltz - Audio Server 0.1")
         self.root.configure(bg=BG)
         # Icone : meme que le serveur positions (bandeau bleu SERVER) car
         # l'audio server est un composant du serveur, pas un produit distinct.
         try:
             from pathlib import Path as _Path
-            _ico_path = _Path(__file__).resolve().parent / "StarCircus_Server.ico"
+            _ico_path = _Path(__file__).resolve().parent / "RadioSmoltz_Server.ico"
             if _ico_path.exists():
                 self.root.iconbitmap(default=str(_ico_path))
                 self.root.wm_iconbitmap(str(_ico_path))
@@ -615,7 +615,7 @@ class ServerUI:
         # Header
         header = tk.Frame(self.root, bg=BG, pady=8)
         header.pack(fill="x", padx=12)
-        tk.Label(header, text="CircusVOIP Audio Server", bg=BG, fg=PURPLE,
+        tk.Label(header, text="RadioSmoltz Audio Server", bg=BG, fg=PURPLE,
                  font=("Courier", 13, "bold")).pack(side="left")
         self._lbl_port = tk.Label(header, text=f"Port {AUDIO_PORT}", bg=BG,
                                   fg=GREEN, font=("Courier", 10))
@@ -706,7 +706,7 @@ class _HeadlessUI:
     console (stdout) au lieu d'une fenetre Tkinter.
 
     Modif 25/05/2026 : tous les logs sont aussi ecrits dans un fichier
-    dedie /var/log/circusvoip-audio/audio_YYYYMMDD_HHMMSS.log pour
+    dedie /var/log/radiosmoltz-audio/audio_YYYYMMDD_HHMMSS.log pour
     debug ulterieur (fallback silencieux si le dossier n'est pas
     accessible en ecriture)."""
 
@@ -732,7 +732,7 @@ def _run_headless():
     """Lance l'audio server sans UI Tkinter."""
     masked = SERVER_TOKEN[:4] + "***" if len(SERVER_TOKEN) >= 4 else "***"
     print("=" * 60)
-    print("CircusVOIP Audio Server - mode headless")
+    print("RadioSmoltz Audio Server - mode headless")
     print(f"Port audio   : {AUDIO_PORT}")
     print(f"Token        : {masked}  (visible complet dans la config)")
     print(f"Cap clients  : {MAX_AUDIO_CLIENTS}")

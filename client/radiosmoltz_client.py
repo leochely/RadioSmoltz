@@ -1,10 +1,10 @@
 """
-CircusVOIP - Client (port PySide6)
+RadioSmoltz - Client (port PySide6)
 ==================================
 
-Client CircusVOIP basé sur Qt (PySide6). Délègue la logique métier
-à `circusvoip_core` (réseau, audio, helmet, gamelog, OCR loop, radio
-PTT) et le pipeline OCR à `circusvoip_sc_ocr` (capture mss + EasyOCR
+Client RadioSmoltz basé sur Qt (PySide6). Délègue la logique métier
+à `radiosmoltz_core` (réseau, audio, helmet, gamelog, OCR loop, radio
+PTT) et le pipeline OCR à `radiosmoltz_sc_ocr` (capture mss + EasyOCR
 + parsing tolérant aux erreurs OCR).
 
 Fonctionnalités :
@@ -17,12 +17,12 @@ Fonctionnalités :
   - Overlays floating (mutes/channel/prox_range) avec drag/resize
   - Mode anonyme (broadcast serveur)
 
-Lancement : py -3.14 circusvoip_client.py
+Lancement : py -3.14 radiosmoltz_client.py
 
-Config : circusvoip_client_config.json (un seul fichier qui regroupe
+Config : radiosmoltz_client_config.json (un seul fichier qui regroupe
          toutes les preferences : audio, connexion, OCR, radio PTT,
          overlays, geometrie fenetre, Mode RP).
-         Migration auto : si l'ancien circusvoip_client2_config.json
+         Migration auto : si l'ancien radiosmoltz_client2_config.json
          existe, ses cles sont fusionnees au boot puis l'ancien fichier
          est renomme en .migrated.bak.
 
@@ -124,7 +124,7 @@ _REQUIRED_PACKAGES = [
     ("pynput",       "pynput"),
     ("psutil",       "psutil"),
     # pynvml : pour les metriques GPU NVIDIA dans le log [METRICS] de
-    # circusvoip_core.py. Le module Python s'appelle 'pynvml' mais le
+    # radiosmoltz_core.py. Le module Python s'appelle 'pynvml' mais le
     # package pip s'appelle 'nvidia-ml-py'. Sans ce module, les
     # metriques GPU sont silencieusement skippees mais le client tourne.
     ("pynvml",       "nvidia-ml-py"),
@@ -228,7 +228,7 @@ def _bootstrap_dependencies():
         sys.exit(1)
 
     print("[BOOTSTRAP] Toutes les dependances sont installees.", flush=True)
-    print("[BOOTSTRAP] Demarrage de CircusVOIP...", flush=True)
+    print("[BOOTSTRAP] Demarrage de RadioSmoltz...", flush=True)
 
 
 # Lancement du bootstrap. Doit imperativement preceder les imports tiers.
@@ -288,7 +288,7 @@ except ImportError:
 # sounddevice/numpy ne sont pas la (utile pour debug, mais sans audio
 # evidemment).
 try:
-    from circusvoip_audio_io import (
+    from radiosmoltz_audio_io import (
         AudioIO,
         list_input_devices,
         list_output_devices,
@@ -301,13 +301,13 @@ try:
 except ImportError as _e_audio:
     _AUDIO_AVAILABLE = False
     _AUDIO_IMPORT_ERROR = str(_e_audio)
-_boot_log("import circusvoip_audio_io termine")
+_boot_log("import radiosmoltz_audio_io termine")
 
 
-# Modules CircusVOIP : core (logique metier headless) et sc_ocr (pipeline
+# Modules RadioSmoltz : core (logique metier headless) et sc_ocr (pipeline
 # OCR autonome). Le client (UI Qt) ne fait que coordonner ces deux modules.
 #
-# On reutilise specifiquement de circusvoip_core :
+# On reutilise specifiquement de radiosmoltz_core :
 #   - read_coords         : lecture OCR position depuis la zone HUD
 #   - auto_ocr_zone       : calcul auto zone OCR selon resolution
 #   - _ocr_loop_inner     : boucle OCR principale (sign-flip, jump filter...)
@@ -317,21 +317,21 @@ _boot_log("import circusvoip_audio_io termine")
 #   - distance / compute_proximity_volume : calculs volume positionnel
 #   - state               : etat global partage entre les boucles
 try:
-    import circusvoip_core as _core
+    import radiosmoltz_core as _core
     _CORE_AVAILABLE = True
 except Exception as _e_core:
     _CORE_AVAILABLE = False
     _CORE_IMPORT_ERROR = str(_e_core)
-_boot_log("import circusvoip_core termine")
+_boot_log("import radiosmoltz_core termine")
 
-# Module OCR autonome (utilise aussi par circusvoip_core).
+# Module OCR autonome (utilise aussi par radiosmoltz_core).
 try:
-    import circusvoip_sc_ocr as _sco
+    import radiosmoltz_sc_ocr as _sco
     _SCO_AVAILABLE = True
 except Exception as _e_sco:
     _SCO_AVAILABLE = False
     _SCO_IMPORT_ERROR = str(_e_sco)
-_boot_log("import circusvoip_sc_ocr termine")
+_boot_log("import radiosmoltz_sc_ocr termine")
 
 
 
@@ -567,21 +567,21 @@ _BASE_DIR = Path(__file__).resolve().parent
 # geometrie de fenetre (window_geometry, window_geometry_user_set).
 #
 # Historiquement, le client utilisait 2 fichiers :
-#   - circusvoip_client2_config.json : settings client + geometry
-#   - circusvoip_client_config.json  : settings OCR/radio/overlays
+#   - radiosmoltz_client2_config.json : settings client + geometry
+#   - radiosmoltz_client_config.json  : settings OCR/radio/overlays
 # La separation venait du fait que le legacy client (Tk) ecrivait dans le
 # 2e fichier en parallele. Maintenant que core a remplace le legacy, on
 # unifie tout dans le 1er pour eviter la duplication (qui creait des
 # divergences sur ocr_force_cpu notamment).
 #
 # Au boot, _load_cfg() lit le fichier unique. S'il n'existe pas mais que
-# l'ancien fichier circusvoip_client2_config.json est present, on le
+# l'ancien fichier radiosmoltz_client2_config.json est present, on le
 # migre automatiquement (la geometrie + audio + connexion sont fusionnes
 # avec les autres cles deja presentes, en preservant les valeurs de
-# circusvoip_client_config.json en cas de conflit).
-CLIENT_CONFIG_FILE = _BASE_DIR / "circusvoip_client_config.json"
-_LEGACY_CLIENT2_CONFIG = _BASE_DIR / "circusvoip_client2_config.json"
-VERSION_FILE = _BASE_DIR / "circusvoip_version.json"
+# radiosmoltz_client_config.json en cas de conflit).
+CLIENT_CONFIG_FILE = _BASE_DIR / "radiosmoltz_client_config.json"
+_LEGACY_CLIENT2_CONFIG = _BASE_DIR / "radiosmoltz_client2_config.json"
+VERSION_FILE = _BASE_DIR / "radiosmoltz_version.json"
 # CircusPhone (Feature 4, D4) : annuaire local des contacts. Fichier JSON
 # auto-enrichi a chaque session avec les joueurs vus connectes en meme
 # temps que l'utilisateur. Ne purge jamais tout seul (l'utilisateur peut
@@ -616,15 +616,15 @@ PHONE_MAX_RECEIVED  = PHONE_MAX_MESSAGES  # deprecated
 # detecter une desynchro avec le serveur (changement hors-ligne) et
 # repousser automatiquement a la prochaine reco. Le cache des pairs vit
 # dans un dossier dedie : 1 JPEG par pseudo + un index JSON {pseudo:hash}.
-PHONE_PROFILE_PHOTO_FILE       = _BASE_DIR / "circusvoip_profile_photo.jpg"
-PHONE_PROFILE_PHOTO_META_FILE  = _BASE_DIR / "circusvoip_profile_photo.meta.json"
+PHONE_PROFILE_PHOTO_FILE       = _BASE_DIR / "radiosmoltz_profile_photo.jpg"
+PHONE_PROFILE_PHOTO_META_FILE  = _BASE_DIR / "radiosmoltz_profile_photo.meta.json"
 # [D5+] Photo source non compressee (PNG pour preserver la qualite). Sert
 # de base aux re-compressions quand l'utilisateur ajuste le zoom +/-
 # sans dégradation cumulative. Le format PNG est volontaire : meme si la
 # source originale est un JPEG, on convertit en PNG sans perte pour
 # pouvoir re-cropper a volonte.
-PHONE_PROFILE_PHOTO_SOURCE_FILE = _BASE_DIR / "circusvoip_profile_photo_source.png"
-PHONE_PROFILE_CACHE_DIR        = _BASE_DIR / "circusvoip_profile_photo_cache"
+PHONE_PROFILE_PHOTO_SOURCE_FILE = _BASE_DIR / "radiosmoltz_profile_photo_source.png"
+PHONE_PROFILE_CACHE_DIR        = _BASE_DIR / "radiosmoltz_profile_photo_cache"
 PHONE_PROFILE_CACHE_INDEX_FILE = PHONE_PROFILE_CACHE_DIR / "_index.json"
 # Limite stricte cote client (doit etre coherente avec _PROFILE_PHOTO_MAX_BYTES
 # cote serveur). On compresse jusqu'a tenir sous cette limite.
@@ -701,7 +701,7 @@ class _ProfilePhotoManager:
     # ─── persistance locale (photo de l'utilisateur) ───────────────
 
     def _load_meta(self):
-        """Lit circusvoip_profile_photo.meta.json. Si absent ou corrompu,
+        """Lit radiosmoltz_profile_photo.meta.json. Si absent ou corrompu,
         on repart d'un etat 'pas de photo'. Si le fichier JPEG existe mais
         pas la meta, on recalcule le hash et on considere la photo non
         encore uploadee (sera repoussee a la prochaine reco)."""
@@ -1242,7 +1242,7 @@ class _ProfilePhotoManager:
 
 
 def _load_version_info() -> dict:
-    """Charge le fichier circusvoip_version.json a cote du script.
+    """Charge le fichier radiosmoltz_version.json a cote du script.
     Retourne un dict avec 'version' (X.Y.Z), 'channel' (alpha/beta/rc/stable),
     'build' (entier). Si le fichier n'existe pas ou est invalide, retourne
     une version par defaut '0.0.0 alpha 000' (signal qu'il y a un probleme).
@@ -1300,7 +1300,7 @@ _VERSION_STRING = _format_version_string(_VERSION_INFO)
 # ============================================================
 # L'updater interroge le serveur HTTP de mise a jour (port 8080) pour voir
 # si une nouvelle version est disponible. Le serveur est suppose tourner
-# sur la meme IP que le serveur CircusVOIP (champ 'server_ip' dans la
+# sur la meme IP que le serveur RadioSmoltz (champ 'server_ip' dans la
 # config client) -> pas de config supplementaire pour l'utilisateur.
 #
 # Comparaison de version : on compare le triplet (version, build) entre
@@ -1346,7 +1346,7 @@ def _check_for_updates(server_ip: str) -> dict | None:
         import urllib.request
         url = f"http://{server_ip}:{UPDATE_PORT}/manifest.json"
         req = urllib.request.Request(
-            url, headers={"User-Agent": "CircusVOIP-Client"}
+            url, headers={"User-Agent": "RadioSmoltz-Client"}
         )
         with urllib.request.urlopen(req, timeout=UPDATE_TIMEOUT) as resp:
             raw = resp.read().decode("utf-8")
@@ -1401,7 +1401,7 @@ def _download_update_file(server_ip: str, file_meta: dict, dest_dir: Path) -> bo
         import urllib.request
         url = f"http://{server_ip}:{UPDATE_PORT}/files/{name}"
         req = urllib.request.Request(
-            url, headers={"User-Agent": "CircusVOIP-Client"}
+            url, headers={"User-Agent": "RadioSmoltz-Client"}
         )
         dest = dest_dir / name
         with urllib.request.urlopen(req, timeout=30) as resp:
@@ -1448,7 +1448,7 @@ def _download_pip_wheel(server_ip: str, pkg_meta: dict, dest_dir: Path) -> bool:
         import urllib.request
         url = f"http://{server_ip}:{UPDATE_PORT}/pip_packages/{name}"
         req = urllib.request.Request(
-            url, headers={"User-Agent": "CircusVOIP-Client"}
+            url, headers={"User-Agent": "RadioSmoltz-Client"}
         )
         with urllib.request.urlopen(req, timeout=120) as resp:
             data = resp.read()
@@ -1538,7 +1538,7 @@ def _apply_update(server_ip: str, manifest: dict) -> tuple[bool, str]:
     pip_pkgs = manifest.get("pip_packages", [])
     if not files and not pip_pkgs:
         return False, "Manifest vide (rien a mettre a jour)"
-    tmp_dir = Path(tempfile.mkdtemp(prefix="circusvoip_update_"))
+    tmp_dir = Path(tempfile.mkdtemp(prefix="radiosmoltz_update_"))
     try:
         # Phase 1 : download des .py
         for fmeta in files:
@@ -1666,7 +1666,7 @@ def _load_cfg() -> dict:
     """Charge la config depuis CLIENT_CONFIG_FILE.
 
     Migration auto : si CLIENT_CONFIG_FILE existe mais qu'il y a aussi un
-    ancien circusvoip_client2_config.json non encore migre, on fusionne
+    ancien radiosmoltz_client2_config.json non encore migre, on fusionne
     les cles client2 dans le canonique. Les cles deja presentes dans
     CLIENT_CONFIG_FILE ont priorite (elles refletent l'etat le plus recent
     pour les params OCR/radio/overlays). Les cles uniquement presentes
@@ -2398,7 +2398,7 @@ class NetWorker(QObject):
         # connexion chiffree mais pas d'authentification stricte. C'est
         # acceptable car l'auth client se fait ensuite via le token dans
         # le message "join" (compare_digest cote serveur, cf [P1]).
-        from circusvoip_security import build_client_ssl_context_insecure
+        from radiosmoltz_security import build_client_ssl_context_insecure
         uri = f"wss://{server_ip}:{SERVER_PORT}"
         _ssl_ctx = build_client_ssl_context_insecure()
         self.sig_log.emit(f"[NET] Connexion a {uri} (nom={name})...")
@@ -2421,8 +2421,8 @@ class NetWorker(QObject):
                 state.my_name = name
                 state.server_token = token
                 # Renommer le fichier de log avec le pseudo joueur (sinon
-                # tous les logs s'ecrasent dans circusvoip_debug.log generique).
-                # Format final : circusvoip_debug_<Pseudo>_JJMMAAAA_HHMMSS.log
+                # tous les logs s'ecrasent dans radiosmoltz_debug.log generique).
+                # Format final : radiosmoltz_debug_<Pseudo>_JJMMAAAA_HHMMSS.log
                 if _CORE_AVAILABLE:
                     try:
                         _core._set_log_player_name(name)
@@ -3566,7 +3566,7 @@ class KeyCaptureDialog(QDialog):
 class GameLogPathDialog(QDialog):
     """Demande a l'utilisateur le chemin du dossier LIVE/PTU de Star Citizen
     quand _find_gamelog() ne le trouve pas tout seul. Le chemin valide est
-    sauvegarde dans circusvoip_client_config.json sous la cle 'gamelog_path'.
+    sauvegarde dans radiosmoltz_client_config.json sous la cle 'gamelog_path'.
     """
 
     def __init__(self, parent):
@@ -3655,7 +3655,7 @@ class GameLogPathDialog(QDialog):
 # Compatible config client1 :
 #   - cfg["overlays_active"] : liste des ids actifs (["mutes", "channel",...])
 #   - cfg["overlays_config"] : {ov_id: {"x": int, "y": int, "size": int}}
-# Les positions/tailles sont LUES depuis circusvoip_client_config.json
+# Les positions/tailles sont LUES depuis radiosmoltz_client_config.json
 # (le config du client1) pour que vous n'ayez pas a tout reconfigurer.
 # Les modifications sont ECRITES dans le meme config.
 
@@ -4161,7 +4161,7 @@ class OverlayWindow(QWidget):
 class OverlayManager(QObject):
     """Gere l'ouverture/fermeture des overlays selon (overlays_show,
     overlays_edit, overlays_active). Un seul OverlayManager pour le
-    client. Persiste les changements dans circusvoip_client_config.json."""
+    client. Persiste les changements dans radiosmoltz_client_config.json."""
 
     def __init__(self, main_window):
         super().__init__()
@@ -4172,7 +4172,7 @@ class OverlayManager(QObject):
         self.show_mode = False  # bouton "Overlay"
         self.edit_mode = False  # bouton "Overlay Edition"
         # Liste des actifs et config positions/tailles : on lit depuis
-        # circusvoip_client_config.json au boot
+        # radiosmoltz_client_config.json au boot
         self.active: list[str] = []
         self.cfg: dict = {}
         self._load_from_core_cfg()
@@ -6255,7 +6255,7 @@ class DisplayInfoMaskWindow(QWidget):
     # ------------------------------------------------------------
     # Hide/show pendant la capture OCR (v0.2 alpha 009)
     # ------------------------------------------------------------
-    # L'OCR (circusvoip_sc_ocr.capture_region) appelle MSS pour capturer
+    # L'OCR (radiosmoltz_sc_ocr.capture_region) appelle MSS pour capturer
     # la zone des coordonnees du HUD. Si notre masque est visible au
     # moment de cette capture, MSS le voit aussi (sur Windows avec
     # WA_TranslucentBackground, l'API SetWindowDisplayAffinity refuse
@@ -6270,7 +6270,7 @@ class DisplayInfoMaskWindow(QWidget):
     # Coordination :
     #   - Le client expose 2 slots Qt (_slot_hide_for_ocr / _slot_show_after_ocr)
     #     qui s'executent dans le thread Qt principal.
-    #   - circusvoip_sc_ocr.set_capture_callbacks(pre, post) recoit 2
+    #   - radiosmoltz_sc_ocr.set_capture_callbacks(pre, post) recoit 2
     #     fonctions qui invoke ces slots en BlockingQueuedConnection
     #     depuis le thread OCR -> le thread OCR attend que Qt ait
     #     effectivement cache la fenetre AVANT de capturer.
@@ -6329,7 +6329,7 @@ class DisplayInfoMaskWindow(QWidget):
             pass
 
     def _register_ocr_callbacks(self):
-        """Branche les callbacks pre/post capture sur circusvoip_sc_ocr.
+        """Branche les callbacks pre/post capture sur radiosmoltz_sc_ocr.
         A appeler au boot de la fenetre. Les callbacks invoquent les
         slots Qt en BlockingQueuedConnection -> le thread OCR attend
         que Qt ait traite le show/hide AVANT de continuer."""
@@ -6506,7 +6506,7 @@ class DisplayInfoMaskWindow(QWidget):
 #
 # Le streamer ajoute dans OBS une source "Window Capture" / "Capture de
 # fenetre" en mode "Windows 10 Graphics Capture" pointant sur la fenetre
-# de titre "CircusVOIP - Mask Source for OBS". Il positionne cette source
+# de titre "RadioSmoltz - Mask Source for OBS". Il positionne cette source
 # dans sa scene OBS par-dessus son Game Capture, sur la zone HUD.
 
 class DisplayInfoMaskWindowOBS(QWidget):
@@ -6518,11 +6518,11 @@ class DisplayInfoMaskWindowOBS(QWidget):
     capturable. v0.2 alpha 060 : s'attache au service partage
     _DisplayInfoMaskWorkerService au showEvent / s'en detache au closeEvent.
 
-    Titre de fenetre stable : "CircusVOIP - Mask Source for OBS" (utilise
+    Titre de fenetre stable : "RadioSmoltz - Mask Source for OBS" (utilise
     par le streamer pour identifier la source dans OBS).
     """
 
-    OBS_WINDOW_TITLE = "CircusVOIP - Mask Source for OBS"
+    OBS_WINDOW_TITLE = "RadioSmoltz - Mask Source for OBS"
 
     def __init__(self, screen_obj, service=None):
         # service : v0.2 alpha 060, _DisplayInfoMaskWorkerService partage
@@ -6543,7 +6543,7 @@ class DisplayInfoMaskWindowOBS(QWidget):
         # overlay). Resultat : la fenetre n'apparaissait pas dans la liste
         # OBS. Sans Qt.Tool, la fenetre apparait dans la taskbar Windows
         # et Alt-Tab, mais c'est le prix a payer pour qu'OBS la voit. Le
-        # titre explicite ("CircusVOIP - Mask Source for OBS") rend
+        # titre explicite ("RadioSmoltz - Mask Source for OBS") rend
         # l'entree comprehensible pour l'utilisateur.
         #
         # NB : on N'utilise PAS WindowStaysOnTopHint (rien a montrer a
@@ -9869,7 +9869,7 @@ class PhoneOverlayWindow(QWidget):
             if not key:
                 return "—"
             try:
-                import circusvoip_core as _c
+                import radiosmoltz_core as _c
                 return _c.format_hotkey_for_display(key) or "—"
             except Exception:
                 return key
@@ -10498,10 +10498,10 @@ class MainWindow(QMainWindow):
         # de skipper le disconnect au 1er appel (sinon RuntimeWarning).
         self._audio_signals_connected: bool = False
 
-        # Titre dynamique : lit _VERSION_STRING qui vient de circusvoip_version.json
+        # Titre dynamique : lit _VERSION_STRING qui vient de radiosmoltz_version.json
         # (format "0.1.2 alpha 035"). Avant, la version etait hardcodee en
         # "0.1" et ne refletait jamais la version reelle.
-        self.setWindowTitle(f"CircusVOIP Client — {_VERSION_STRING}")
+        self.setWindowTitle(f"RadioSmoltz Client — {_VERSION_STRING}")
         # Appliquer le theme sombre global. On le met sur la
         # QApplication pour que toutes les dialogs creees plus tard
         # (QMessageBox, QFileDialog, etc.) heritent automatiquement.
@@ -10511,11 +10511,11 @@ class MainWindow(QMainWindow):
                 app.setStyleSheet(THEME_QSS)
         except Exception:
             pass
-        # Icone de la fenetre + barre des taches : StarCircus.ico
+        # Icone de la fenetre + barre des taches : RadioSmoltz.ico
         # qui est dans le meme dossier que le client. Fallback silencieux
         # si le fichier est absent (pas critique).
         try:
-            ico_path = _BASE_DIR / "StarCircus.ico"
+            ico_path = _BASE_DIR / "RadioSmoltz.ico"
             if ico_path.exists():
                 icon = QIcon(str(ico_path))
                 self.setWindowIcon(icon)
@@ -12539,7 +12539,7 @@ class MainWindow(QMainWindow):
         if not ip:
             QMessageBox.warning(
                 self,
-                "CircusVOIP - Mise a jour",
+                "RadioSmoltz - Mise a jour",
                 "Pas d'IP serveur configuree.\n"
                 "Configurez d'abord l'IP serveur dans le champ ci-dessus."
             )
@@ -12596,7 +12596,7 @@ class MainWindow(QMainWindow):
             self._on_log(f"[UPDATE] Verification echouee : {err_msg}")
             box = QMessageBox(
                 QMessageBox.Warning,
-                "CircusVOIP - Mise a jour",
+                "RadioSmoltz - Mise a jour",
                 f"Impossible de verifier les MAJ :\n\n{err_msg}\n\n"
                 f"Verifiez l'IP serveur et la connexion reseau.",
                 QMessageBox.Ok,
@@ -12606,7 +12606,7 @@ class MainWindow(QMainWindow):
             self._on_log(f"[UPDATE] Deja a jour : {_VERSION_STRING}")
             box = QMessageBox(
                 QMessageBox.Information,
-                "CircusVOIP - Mise a jour",
+                "RadioSmoltz - Mise a jour",
                 f"Vous avez deja la derniere version :\n"
                 f"{_VERSION_STRING}",
                 QMessageBox.Ok,
@@ -12646,7 +12646,7 @@ class MainWindow(QMainWindow):
         # derriere la fenetre principale et passer inapercue).
         box = QMessageBox(
             QMessageBox.Question,
-            "CircusVOIP - Mise a jour disponible",
+            "RadioSmoltz - Mise a jour disponible",
             msg,
             QMessageBox.Yes | QMessageBox.No,
             self,
@@ -12667,7 +12667,7 @@ class MainWindow(QMainWindow):
         if not ip:
             QMessageBox.warning(
                 self,
-                "CircusVOIP - Mise a jour",
+                "RadioSmoltz - Mise a jour",
                 "Pas d'IP serveur configuree."
             )
             return
@@ -12747,7 +12747,7 @@ class MainWindow(QMainWindow):
             self._pending_apply_manifest = None
             box = QMessageBox(
                 QMessageBox.Critical,
-                "CircusVOIP - Echec mise a jour",
+                "RadioSmoltz - Echec mise a jour",
                 f"La mise a jour a echoue :\n\n{msg}\n\n"
                 f"Le client continue en version actuelle "
                 f"({_VERSION_STRING}).",
@@ -12784,8 +12784,8 @@ class MainWindow(QMainWindow):
     @Slot(bool)
     def _on_ocr_force_cpu_toggled(self, checked: bool):
         """Toggle OCR force CPU : ecrit dans la config CLIENT1
-        (circusvoip_client_config.json) car c'est ce config-la que
-        circusvoip_client.py lit au demarrage pour decider GPU vs CPU.
+        (radiosmoltz_client_config.json) car c'est ce config-la que
+        radiosmoltz_client.py lit au demarrage pour decider GPU vs CPU.
         Notre config client2 n'est pas lue par le code OCR du client1."""
         if _CORE_AVAILABLE:
             try:
@@ -12793,7 +12793,7 @@ class MainWindow(QMainWindow):
                 core_cfg["ocr_force_cpu"] = checked
                 _core._save_client_cfg(core_cfg)
                 self._on_log(f"[OCR] force_cpu={checked} sauve dans "
-                             f"circusvoip_client_config.json")
+                             f"radiosmoltz_client_config.json")
             except Exception as e:
                 self._on_log(f"[OCR] Echec ecriture config client1 : {e}")
         # On garde aussi une copie dans notre config (au cas ou)
@@ -12802,15 +12802,15 @@ class MainWindow(QMainWindow):
         self._refresh_ocr_mode_info()
         QMessageBox.information(
             self,
-            "CircusVOIP",
+            "RadioSmoltz",
             f"Mode OCR : {'CPU force' if checked else 'GPU (auto)'}\n\n"
             "Le changement sera applique au prochain demarrage de "
-            "CircusVOIP (EasyOCR ne peut pas etre reinitialise a chaud).",
+            "RadioSmoltz (EasyOCR ne peut pas etre reinitialise a chaud).",
         )
 
     def _on_ocr_freq_changed(self, index: int):
         """Cadence OCR : ecrit ocr_max_freq_hz dans la config CLIENT1
-        (lue par _ocr_loop_inner dans circusvoip_core.py). La boucle OCR
+        (lue par _ocr_loop_inner dans radiosmoltz_core.py). La boucle OCR
         re-lit ce reglage toutes les 30s, donc pas besoin de redemarrer."""
         try:
             _label, value = self._ocr_freq_options[index]
@@ -12822,7 +12822,7 @@ class MainWindow(QMainWindow):
                 core_cfg["ocr_max_freq_hz"] = value
                 _core._save_client_cfg(core_cfg)
                 self._on_log(f"[OCR] cadence={value!r} sauve dans "
-                             f"circusvoip_client_config.json")
+                             f"radiosmoltz_client_config.json")
             except Exception as e:
                 self._on_log(f"[OCR] Echec ecriture cadence config client1 : {e}")
         # Copie dans notre config aussi (coherence avec ocr_force_cpu).
@@ -12862,10 +12862,10 @@ class MainWindow(QMainWindow):
         Activation a chaud : pas de redemarrage client necessaire.
         - Sauve l'etat dans _cfg pour persistance entre sessions.
         - Appelle state.audio_io.set_audio_rx_log_enabled() qui ouvre
-          ou ferme le fichier CSV dans circusvoip_debug/audio_rx/.
+          ou ferme le fichier CSV dans radiosmoltz_debug/audio_rx/.
         - Met a jour le label d'info sous la case.
 
-        Le module circusvoip_audio_rx_logger est autonome : si l'init
+        Le module radiosmoltz_audio_rx_logger est autonome : si l'init
         echoue (disque plein, perms), on remet la case decochee et on
         previent l'utilisateur via le log debug.
         """
@@ -12902,7 +12902,7 @@ class MainWindow(QMainWindow):
                 debug_dir = None
         if debug_dir is None:
             from pathlib import Path
-            debug_dir = Path("circusvoip_debug")
+            debug_dir = Path("radiosmoltz_debug")
 
         # Appel a chaud (le module logger gere thread-safe l'ouverture
         # ou fermeture du fichier CSV).
@@ -12935,7 +12935,7 @@ class MainWindow(QMainWindow):
             self.lbl_audio_rx_log_info.setText(
                 "Actif : trames audio recues + callbacks sounddevice + "
                 "stats 30s sont enregistres dans un CSV separe "
-                "(circusvoip_debug/audio_rx/). Volume eleve : "
+                "(radiosmoltz_debug/audio_rx/). Volume eleve : "
                 "~80-160 MB par heure selon le nombre de senders. "
                 "Desactiver des que le diagnostic est fait."
             )
@@ -13332,17 +13332,17 @@ class MainWindow(QMainWindow):
         Reproduit le comportement de _auto_zone du client1 (ligne 9623+).
         Sur 1 ecran : pas de question, calcule directement."""
         if not _CORE_AVAILABLE:
-            QMessageBox.warning(self, "CircusVOIP",
+            QMessageBox.warning(self, "RadioSmoltz",
                                 "Module client1 non disponible.")
             return
         try:
             mons = _sco.list_monitors()
         except Exception as e:
-            QMessageBox.critical(self, "CircusVOIP",
+            QMessageBox.critical(self, "RadioSmoltz",
                                  f"Impossible de lister les ecrans : {e}")
             return
         if not mons:
-            QMessageBox.warning(self, "CircusVOIP",
+            QMessageBox.warning(self, "RadioSmoltz",
                                 "Aucun ecran detecte.")
             return
         if len(mons) == 1:
@@ -13402,14 +13402,14 @@ class MainWindow(QMainWindow):
             self._refresh_zone_info()
             QMessageBox.information(
                 self,
-                "CircusVOIP",
+                "RadioSmoltz",
                 f"Nouvelle zone : {new_zone['width']}x{new_zone['height']} "
                 f"a ({new_zone['left']},{new_zone['top']})\n\n"
                 "L'OCR utilisera cette zone immediatement, pas besoin de "
                 "redemarrer."
             )
         except Exception as e:
-            QMessageBox.critical(self, "CircusVOIP", f"Echec : {e}")
+            QMessageBox.critical(self, "RadioSmoltz", f"Echec : {e}")
 
     @Slot()
     def _on_zone_calibrate_manual(self):
@@ -13418,7 +13418,7 @@ class MainWindow(QMainWindow):
         2. Sur l'ecran choisi : selecteur noir avec rectangle a tracer
         3. Sauve la zone dans state.zone_coords + dans les 2 configs."""
         if not _CORE_AVAILABLE:
-            QMessageBox.warning(self, "CircusVOIP",
+            QMessageBox.warning(self, "RadioSmoltz",
                                 "Module client1 non disponible, "
                                 "calibration impossible.")
             return
@@ -13448,19 +13448,19 @@ class MainWindow(QMainWindow):
                 core_cfg["zone_coords"] = zone
                 core_cfg["zone_source"] = "manuel"
                 _core._save_client_cfg(core_cfg)
-                self._on_log("[OCR] Zone sauvee dans circusvoip_client_config.json")
+                self._on_log("[OCR] Zone sauvee dans radiosmoltz_client_config.json")
             except Exception as e:
                 self._on_log(f"[OCR] Echec ecriture config client1 : {e}")
             self._refresh_zone_info()
             QMessageBox.information(
                 self,
-                "CircusVOIP",
+                "RadioSmoltz",
                 f"Zone calibree : {zone['width']}x{zone['height']} a "
                 f"({zone['left']},{zone['top']})\n\n"
                 "L'OCR utilisera cette zone immediatement."
             )
         except Exception as e:
-            QMessageBox.critical(self, "CircusVOIP",
+            QMessageBox.critical(self, "RadioSmoltz",
                                  f"Echec sauvegarde calibration : {e}")
 
     # ------------------------------------------------------------------
@@ -13765,7 +13765,7 @@ class MainWindow(QMainWindow):
         kind dans : 'radio', 'profile', 'mute_mic', 'mute_prox',
         'mute_radio', 'mute_all', 'prox_short', 'cycle_channel'."""
         if not _CORE_AVAILABLE:
-            QMessageBox.warning(self, "CircusVOIP",
+            QMessageBox.warning(self, "RadioSmoltz",
                                 "Module client1 non disponible.")
             return
         # kind -> (label dialog, attribut state, cle config)
@@ -13995,7 +13995,7 @@ class MainWindow(QMainWindow):
 
         if not _AUDIO_AVAILABLE:
             err = QLabel(
-                "Module audio indisponible : circusvoip_audio_io non importable.\n"
+                "Module audio indisponible : radiosmoltz_audio_io non importable.\n"
                 "Verifier que le fichier est dans le dossier et que sounddevice + numpy sont installes."
             )
             err.setStyleSheet("color: #ff8888;")
@@ -14191,7 +14191,7 @@ class MainWindow(QMainWindow):
         # encore initialise au moment du build du panneau). On utilise
         # le flag global du module audio_io.
         try:
-            from circusvoip_audio_io import (
+            from radiosmoltz_audio_io import (
                 NOISE_SUPPRESSION_AVAILABLE,
                 _NS_IMPORT_ERR,
             )
@@ -14323,7 +14323,7 @@ class MainWindow(QMainWindow):
         # ──────────────────────────────────────────────────────────────
         # Diagnostic crackling : log audio RX detaille (ajout 02/06/2026)
         # ──────────────────────────────────────────────────────────────
-        # Active un log CSV separe (circusvoip_debug/audio_rx/) qui trace
+        # Active un log CSV separe (radiosmoltz_debug/audio_rx/) qui trace
         # chaque trame audio recue + chaque callback sounddevice + des
         # stats agregees 30s. Volume eleve (~80-160 MB/h) donc desactive
         # par defaut. A activer ponctuellement pour diagnostiquer un
@@ -14343,7 +14343,7 @@ class MainWindow(QMainWindow):
         self.cb_audio_rx_log.setChecked(audio_rx_log_enabled)
         self.cb_audio_rx_log.setToolTip(
             "Enregistre dans un fichier CSV separe "
-            "(circusvoip_debug/audio_rx/) chaque trame audio recue, "
+            "(radiosmoltz_debug/audio_rx/) chaque trame audio recue, "
             "chaque callback sounddevice, et des stats agregees toutes "
             "les 30s. Permet de diagnostiquer un probleme de crackling "
             "ou de pop audio.\n\n"
@@ -14655,7 +14655,7 @@ class MainWindow(QMainWindow):
         if not inputs:
             QMessageBox.warning(
                 self,
-                "CircusVOIP",
+                "RadioSmoltz",
                 "Aucun micro detecte. Verifiez que sounddevice fonctionne "
                 "et qu'au moins un peripherique d'entree est connecte."
             )
@@ -14700,7 +14700,7 @@ class MainWindow(QMainWindow):
         if not outputs:
             QMessageBox.warning(
                 self,
-                "CircusVOIP",
+                "RadioSmoltz",
                 "Aucune sortie audio detectee."
             )
             return
@@ -14983,7 +14983,7 @@ class MainWindow(QMainWindow):
         kind = 'press' ou 'release'."""
         if state.audio_io is None:
             QMessageBox.information(
-                self, "CircusVOIP",
+                self, "RadioSmoltz",
                 "Le module audio n'est pas initialise."
             )
             return
@@ -15028,7 +15028,7 @@ class MainWindow(QMainWindow):
         """Joue le bip selectionne (custom ou synth) pour audition."""
         if state.audio_io is None:
             QMessageBox.information(
-                self, "CircusVOIP",
+                self, "RadioSmoltz",
                 "Le module audio n'est pas initialise."
             )
             return
@@ -15610,7 +15610,7 @@ class MainWindow(QMainWindow):
     @Slot(str)
     def _on_log(self, line: str):
         """Tous les logs du client2 vont dans le fichier debug du client1
-        (circusvoip_debug_*.log) via _core._dbg_log. Ca evite d'avoir une
+        (radiosmoltz_debug_*.log) via _core._dbg_log. Ca evite d'avoir une
         mini-console UI a entretenir et regroupe tous les logs au meme
         endroit pour faciliter le debug.
         Si client1 indisponible, fallback sur stdout."""
@@ -15879,7 +15879,7 @@ class MainWindow(QMainWindow):
     def _on_invalid_token(self):
         QMessageBox.critical(
             self,
-            "CircusVOIP",
+            "RadioSmoltz",
             "Mot de passe invalide. Verifiez le mot de passe "
             "fourni par l'hebergeur du serveur.",
         )
@@ -16206,7 +16206,7 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
     def _init_zone_ocr(self):
         """Initialise state.zone_coords pour l'OCR. Lit la zone calibree
-        sauvegardee dans la config (circusvoip_client_config.json) en
+        sauvegardee dans la config (radiosmoltz_client_config.json) en
         LECTURE SEULE pour ne pas casser ses donnees.
         Si pas de zone sauvee, calcule une zone auto via auto_ocr_zone()."""
         if not _SCO_AVAILABLE:
@@ -16219,7 +16219,7 @@ class MainWindow(QMainWindow):
                 mons = []
 
             # 1. Tenter de lire la zone depuis le config (via core qui
-            # utilise le meme fichier circusvoip_client_config.json)
+            # utilise le meme fichier radiosmoltz_client_config.json)
             saved_zone = None
             if _CORE_AVAILABLE:
                 try:
@@ -16837,7 +16837,7 @@ class MainWindow(QMainWindow):
         # 0a. Confirmation utilisateur. Si on est dans une fermeture
         # automatique (relance pour MAJ, crash recovery, ...), on bypass :
         # un flag self._skip_close_confirm est mis par le caller dans ces
-        # cas-la. Sinon, popup "Quitter CircusVOIP ?" et on annule la
+        # cas-la. Sinon, popup "Quitter RadioSmoltz ?" et on annule la
         # fermeture si l'utilisateur clique sur Annuler.
         # NB : on utilise addButton pour forcer les libellés français
         # ("Quitter" / "Annuler") au lieu des "Yes"/"No" par defaut de Qt
@@ -16846,8 +16846,8 @@ class MainWindow(QMainWindow):
             try:
                 box = QMessageBox(self)
                 box.setIcon(QMessageBox.Question)
-                box.setWindowTitle("Quitter CircusVOIP ?")
-                box.setText("Voulez-vous vraiment fermer CircusVOIP ?")
+                box.setWindowTitle("Quitter RadioSmoltz ?")
+                box.setText("Voulez-vous vraiment fermer RadioSmoltz ?")
                 btn_quit = box.addButton("Quitter",
                                          QMessageBox.AcceptRole)
                 btn_cancel = box.addButton("Annuler",
@@ -17079,24 +17079,24 @@ def main():
     # Parsing CLI minimaliste (pas argparse pour eviter une dep et garder
     # le boot ultra simple). Les flags actuels :
     #   --debug-ocr    Active la sauvegarde des images du pipeline OCR
-    #                  dans ./circusvoip_debug/. Utile pour diagnostiquer
+    #                  dans ./radiosmoltz_debug/. Utile pour diagnostiquer
     #                  les lectures qui ratent (ex: signe `-` perdu en
     #                  1080p sur une frame). Throttle 5s + rotation 50.
-    #   --debug-dir=D  Dossier de sauvegarde (defaut : ./circusvoip_debug/)
+    #   --debug-dir=D  Dossier de sauvegarde (defaut : ./radiosmoltz_debug/)
     #   -h | --help    Affiche l'aide et quitte.
     debug_ocr = False
     debug_dir = None
     cli_args = sys.argv[1:]
     if "-h" in cli_args or "--help" in cli_args:
         print(
-            "Usage : python circusvoip_client.py [options]\n"
+            "Usage : python radiosmoltz_client.py [options]\n"
             "\n"
             "Options :\n"
             "  --debug-ocr        Sauvegarde les images du pipeline OCR\n"
             "                     (raw, easy_in, tess_in, easyocr) pour\n"
             "                     analyse. Throttle 5s + rotation 50.\n"
             "  --debug-dir=DIR    Dossier de sauvegarde\n"
-            "                     (defaut : ./circusvoip_debug/).\n"
+            "                     (defaut : ./radiosmoltz_debug/).\n"
             "  -h, --help         Affiche cette aide.\n"
         )
         sys.exit(0)
@@ -17114,7 +17114,7 @@ def main():
             qt_argv.append(arg)
     sys.argv[:] = qt_argv
 
-    print(f"[BOOT] CircusVOIP Client2 - {_VERSION_STRING}")
+    print(f"[BOOT] RadioSmoltz Client2 - {_VERSION_STRING}")
     print(f"[BOOT] Python {sys.version.split()[0]}")
     if debug_ocr:
         print(f"[BOOT] DEBUG OCR : actif (--debug-ocr)")
@@ -17170,7 +17170,7 @@ def main():
     # mais avant la creation de MainWindow (qui demarre les threads OCR).
     if debug_ocr:
         try:
-            import circusvoip_sc_ocr as _sco_dbg
+            import radiosmoltz_sc_ocr as _sco_dbg
             _sco_dbg.enable_debug_screens(debug_dir)
         except Exception as e:
             print(f"[BOOT] Impossible d'activer le debug OCR : {e}")

@@ -1,12 +1,12 @@
 """
-circusvoip_audio_rx_logger - Log audio detaille pour diagnostic crackling
+radiosmoltz_audio_rx_logger - Log audio detaille pour diagnostic crackling
 ========================================================================
 
 Module autonome qui ecrit dans un fichier CSV separe tout ce qui passe par
 la reception audio (cote receveur). Pas de bruit dans le log debug
 principal : tout part dans :
 
-    circusvoip_debug/audio_rx/audio_rx_<Pseudo>_<DDMMYYYY>_<HHMMSS>.csv
+    radiosmoltz_debug/audio_rx/audio_rx_<Pseudo>_<DDMMYYYY>_<HHMMSS>.csv
 
 Activable / desactivable a chaud via enable(pseudo) / disable(). Le log
 n'est PAS toujours actif : seulement quand la case a cocher "Activer le
@@ -313,7 +313,7 @@ def enable(pseudo: str, debug_dir: Path) -> bool:
     le thread writer.
 
     pseudo    : nom du joueur (utilise dans le nom de fichier).
-    debug_dir : dossier 'circusvoip_debug' du client. Le sous-dossier
+    debug_dir : dossier 'radiosmoltz_debug' du client. Le sous-dossier
                 'audio_rx/' sera cree dedans automatiquement.
 
     Retourne True si OK, False si deja actif ou echec.

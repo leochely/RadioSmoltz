@@ -1,0 +1,207 @@
+name: build-installer
+
+# Construit les installeurs Windows (cf. installer/README.md).
+#
+# - push d'un tag client-v* / server-v* : build, smoke test, puis attachement
+#   des .exe a la release correspondante ;
+# - pull request touchant la chaine ou les sources : build + smoke test, sans
+#   rien publier (l'etape de release est conditionnee au tag). C'est le moyen
+#   de valider le workflow AVANT de le merger : workflow_dispatch n'apparait
+#   dans l'UI qu'une fois le fichier present sur la branche par defaut ;
+# - workflow_dispatch : build a la demande, recuperable en artefact.
+#
+# L'image windows-latest fournit deja Inno Setup 6 (6.7.1 au moment de
+# l'ecriture) ; sinon on l'installe via Chocolatey. Le Python du runner ne sert
+# pas : l'installeur doit embarquer un CPython redistribuable, que le script
+# telecharge lui-meme (python-build-standalone).
+#
+# ATTENTION avec deps=full et ocr=cuda : le wheel torch CUDA fait a lui seul
+# 1,8 Go et un runner GitHub n'a qu'une dizaine de Go libres sur C:. En CPU
+# (defaut), le moteur OCR complet ne pese que 243 Mo et passe sans souci.
+# Le tier 'bundled' (defaut) est celui qui correspond aux releases amont :
+# l'utilisateur choisit sa variante OCR pendant l'installation.
+
+on:
+  push:
+    tags:
+      - 'client-v*'
+      - 'server-v*'
+  # Filtre de chemins : un build Windows complet prend une quinzaine de
+  # minutes, inutile de le declencher sur une PR qui ne touche que la doc.
+  # client/ et server/ sont inclus a dessein : c'est justement une source
+  # cassee ou un module oublie que le smoke test attrape.
+  pull_request:
+    paths:
+      - 'installer/**'
+      - '.github/workflows/build-installer.yml'
+      - 'client/**'
+      - 'server/**'
+  workflow_dispatch:
+    inputs:
+      component:
+        description: 'Composant a construire'
+        type: choice
+        options: [client, server, both]
+        default: client
+      deps:
+        description: 'Dependances pre-installees (full : risque de saturer le disque du runner)'
+        type: choice
+        options: [bundled, full, none]
+        default: bundled
+      ocr:
+        description: 'Variante PyTorch du moteur OCR (cuda : ~2 Go, deconseille en CI)'
+        type: choice
+        options: [cpu, cuda]
+        default: cpu
+
+permissions:
+  contents: write        # necessaire pour attacher les .exe a la release
+
+concurrency:
+  group: build-installer-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 120
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Determiner composant et version
+        id: cfg
+        shell: pwsh
+        run: |
+          $tag       = "${{ github.ref_name }}"
+          $isTag     = "${{ github.ref_type }}" -eq 'tag'
+          $component = "${{ github.event.inputs.component }}"
+          $deps      = "${{ github.event.inputs.deps }}"
+          $ocr       = "${{ github.event.inputs.ocr }}"
+
+          if (-not $component) {
+            if ($isTag) {
+              # Un tag ne publie qu'un composant : celui de son prefixe.
+              if ($tag -like 'server-v*') { $component = 'server' } else { $component = 'client' }
+            } else {
+              # PR ou dispatch sans choix : on construit les deux, et les deux
+              # .exe partent en artefact. Sinon une PR touchant server/
+              # declencherait un build client qui ne prouve rien.
+              $component = 'both'
+            }
+          }
+          if (-not $deps) { $deps = 'bundled' }
+          if (-not $ocr)  { $ocr  = 'cpu' }
+
+          $version = ''
+          if ($isTag -and $tag -match '^(client|server)-v(\d+\.\d+(\.\d+)?)$') {
+            $version = $Matches[2]
+          } elseif ($isTag) {
+            Write-Host "::warning::Tag '$tag' non reconnu : version lue dans radiosmoltz_version.json."
+          }
+
+          "component=$component" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "deps=$deps"           | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "ocr=$ocr"             | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "version=$version"     | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Host "component=$component  deps=$deps  ocr=$ocr  version=$(if ($version) { $version } else { '(depuis version.json)' })"
+
+      - name: Verifier / installer Inno Setup
+        shell: pwsh
+        run: |
+          $found = $null
+          foreach ($d in @('Inno Setup 6', 'Inno Setup 7')) {
+            foreach ($pf in @(${env:ProgramFiles(x86)}, $env:ProgramFiles)) {
+              $c = Join-Path $pf "$d\ISCC.exe"
+              if (Test-Path $c) { $found = $c; break }
+            }
+            if ($found) { break }
+          }
+          if ($found) {
+            Write-Host "Inno Setup present : $found"
+          } else {
+            Write-Host 'Inno Setup absent de l''image : installation via Chocolatey.'
+            choco install innosetup -y --no-progress
+          }
+
+      - name: Cache du runtime python-build-standalone
+        uses: actions/cache@v6
+        with:
+          path: installer/.cache
+          key: pbs-${{ runner.os }}-py312-${{ hashFiles('installer/build-installer.ps1') }}
+          restore-keys: pbs-${{ runner.os }}-py312-
+
+      - name: Build
+        shell: pwsh
+        run: |
+          # Hashtable, pas tableau : splatter un tableau passe ses elements en
+          # arguments POSITIONNELS, donc la chaine '-Component' atterrit comme
+          # valeur du premier parametre positionnel au lieu d'en nommer un.
+          $params = @{
+            Component  = '${{ steps.cfg.outputs.component }}'
+            Deps       = '${{ steps.cfg.outputs.deps }}'
+            OcrBackend = '${{ steps.cfg.outputs.ocr }}'
+          }
+          $v = '${{ steps.cfg.outputs.version }}'
+          if ($v) { $params['Version'] = $v }
+          & .\installer\build-installer.ps1 @params
+
+      # Verifie ce qu'on s'apprete a publier : installation silencieuse reelle,
+      # compilation des sources par le runtime embarque, imports des
+      # dependances, puis desinstallation. Un payload casse (module oublie,
+      # elagage trop agressif du runtime, wheel manquant) est attrape ici et
+      # pas par les joueurs.
+      - name: Smoke test de l'installeur client
+        if: steps.cfg.outputs.component != 'server'
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem installer\out\RadioSmoltz_Client_Setup_*.exe | Select-Object -First 1
+          $dest = Join-Path $env:RUNNER_TEMP 'radiosmoltz-smoke'
+          Write-Host "Installation silencieuse de $($exe.Name) dans $dest"
+          $p = Start-Process -FilePath $exe.FullName -Wait -PassThru -ArgumentList @(
+            '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/NOICONS',
+            "/DIR=$dest", '/MERGETASKS=!desktopicon,!consoleicon')
+          if ($p.ExitCode -ne 0) { throw "Installation silencieuse KO (code $($p.ExitCode))" }
+
+          # Le smoke test tourne AVEC le runtime installe : c'est lui qu'on
+          # valide. offscreen car aucun bureau interactif n'est garanti.
+          $env:QT_QPA_PLATFORM = 'offscreen'
+          & (Join-Path $dest 'runtime\python.exe') .\installer\smoke-test.py $dest
+          if ($LASTEXITCODE -ne 0) { throw 'Smoke test de l''installation KO' }
+
+          Start-Process -FilePath (Join-Path $dest 'unins000.exe') -Wait -ArgumentList @(
+            '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART')
+          Write-Host 'Smoke test OK.'
+
+      - name: Empreintes SHA256
+        shell: pwsh
+        run: |
+          $sums = Get-ChildItem installer\out\*.exe | ForEach-Object {
+            "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash)  $($_.Name)"
+          }
+          $sums | Tee-Object -FilePath installer\out\SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: radiosmoltz-installers-${{ steps.cfg.outputs.component }}
+          path: |
+            installer/out/*.exe
+            installer/out/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Attacher a la release
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          gh release view $tag
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "Release $tag inexistante : creation."
+            gh release create $tag --title $tag --generate-notes
+          }
+          $files = @(Get-ChildItem installer\out\*.exe | ForEach-Object { $_.FullName })
+          $files += (Resolve-Path installer\out\SHA256SUMS.txt).Path
+          gh release upload $tag @files --clobber

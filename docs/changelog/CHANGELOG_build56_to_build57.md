@@ -6,7 +6,7 @@ Périmètre : commits `83350c2` (build 56) → `949aa62` (bump build 57), plus
 le gros du changement audio est porté par `f626f9b`, dont le message
 (« disable auto-update ») ne reflète pas le contenu réel.
 
-Fichier principal touché : `client/circusvoip_audio_io.py`.
+Fichier principal touché : `client/radiosmoltz_audio_io.py`.
 
 ---
 
@@ -61,12 +61,12 @@ Firesstones). Trois mécanismes ajoutés, par sender.
 
 ## Diagnostic — log audio RX détaillé (optionnel)
 
-- Import optionnel du module autonome `circusvoip_audio_rx_logger`
+- Import optionnel du module autonome `radiosmoltz_audio_rx_logger`
   (fallback `_audio_rx_logger = None` ⇒ tous les appels no-op si le fichier
   est absent).
 - Nouvelle méthode `AudioIO.set_audio_rx_log_enabled(enabled, pseudo,
   debug_dir)` : toggle depuis l'UI (« Activer le log audio détaillé » dans
-  les Paramètres). Écrit un CSV séparé dans `circusvoip_debug/audio_rx/`.
+  les Paramètres). Écrit un CSV séparé dans `radiosmoltz_debug/audio_rx/`.
   Retourne `False` si module absent / déjà dans l'état demandé / échec
   ouverture.
 - `_on_output_block` : appel `log_out(...)` en fin de callback (no-op si
@@ -89,13 +89,13 @@ Firesstones). Trois mécanismes ajoutés, par sender.
   désactivation de la vérification d'auto-update pour la publication
   publique. (Le même commit embarque la refonte audio ci-dessus.)
 - `chore: bump to v0.2.0 stable build 057` (`949aa62`) : bump
-  `client/circusvoip_version.json`, build 056 → **057**, channel `stable`.
+  `client/radiosmoltz_version.json`, build 056 → **057**, channel `stable`.
 
 ---
 
 ## Note de cohérence
 
-Le fichier `client/circusvoip_audio_rx_logger.py` reste **untracked** dans
+Le fichier `client/radiosmoltz_audio_rx_logger.py` reste **untracked** dans
 le dépôt (module de debug exclu du suivi Git). L'import optionnel garantit
 que l'absence du module ne casse rien (no-op). À décider si on souhaite le
 versionner pour que le toggle UI soit fonctionnel chez les utilisateurs.

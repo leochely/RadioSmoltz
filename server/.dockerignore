@@ -5,14 +5,14 @@ __pycache__/
 # Etat runtime (ne doit JAMAIS finir dans l'image)
 cert.pem
 key.pem
-circusvoip_auth_tickets.json
-circusvoip_admin_token.json
-circusvoip_server_config.json
-circusvoip_channels.json
-circusvoip_profiles.json
-circusvoip_broadcasters.json
-circusvoip_admin_config.json
-circusvoip_debug/
+radiosmoltz_auth_tickets.json
+radiosmoltz_admin_token.json
+radiosmoltz_server_config.json
+radiosmoltz_channels.json
+radiosmoltz_profiles.json
+radiosmoltz_broadcasters.json
+radiosmoltz_admin_config.json
+radiosmoltz_debug/
 
 # Icones Windows (l'image Docker n'en a pas besoin)
 *.ico

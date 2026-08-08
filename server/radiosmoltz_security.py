@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-CircusVOIP - Module de securite partage
+RadioSmoltz - Module de securite partage
 ========================================
 Logique de securite commune aux deux serveurs (positions 8888 et audio 8889).
-Importe par circusvoip_server.py ET circusvoip_audio_server.py pour eviter
+Importe par radiosmoltz_server.py ET radiosmoltz_audio_server.py pour eviter
 la duplication et garantir un comportement identique.
 
 Contenu :
@@ -181,7 +181,7 @@ class AuthRegistry:
 
     # ---- cote serveur positions : emission ----
 
-    def issue(self, name: str, ticket: str):
+    def issue(self, name: str, ticket: str, **extra):
         """Enregistre un ticket valide pour `name`. Appele par le serveur
         positions juste avant d'envoyer le welcome au client.
 
@@ -190,7 +190,12 @@ class AuthRegistry:
         precedent join ait revoque l'ancien ticket), ils sont
         automatiquement revoques avant d'enregistrer le nouveau. Cela
         evite qu'un thread audio fantome se reconnecte avec un ticket
-        obsolete et entre en course avec le nouveau."""
+        obsolete et entre en course avec le nouveau.
+
+        Les kwargs supplementaires (ex: `can_broadcast=True`) sont stockes
+        tels quels dans l'entree du ticket et lisibles cote serveur audio
+        via verify_full(). Permet de propager des capabilities par-joueur
+        sans schema fixe."""
         data = self._read_all()
         # Revoque les tickets actifs pour ce nom (cas reconnexion rapide).
         to_remove = [t for t, e in data.items()
@@ -200,6 +205,7 @@ class AuthRegistry:
         data[ticket] = {
             "name": name,
             "expires": time.time() + self.ttl_sec,
+            **extra,
         }
         self._prune(data)
         self._write_all(data)
@@ -219,6 +225,14 @@ class AuthRegistry:
     def verify(self, ticket: str):
         """Verifie un ticket presente au serveur audio. Retourne le nom
         associe si le ticket est valide et non expire, sinon None."""
+        entry = self.verify_full(ticket)
+        return None if entry is None else entry.get("name")
+
+    def verify_full(self, ticket: str):
+        """Comme verify() mais retourne l'entree complete (nom, expires,
+        + tout champ supplementaire ajoute via issue(**extra)) ou None si
+        invalide/expire. Utilise quand le serveur audio doit lire des
+        capabilities par-joueur (ex: can_broadcast)."""
         if not ticket or not isinstance(ticket, str):
             return None
         data = self._read_all()
@@ -227,7 +241,7 @@ class AuthRegistry:
             return None
         if time.time() >= entry.get("expires", 0):
             return None
-        return entry.get("name")
+        return entry
 
     # ---- interne ----
 
@@ -323,7 +337,7 @@ def build_ssl_context(certfile: str, keyfile: str) -> ssl.SSLContext:
 
 def ensure_self_signed_cert(cert_path: Path,
                             key_path: Path,
-                            common_name: str = "circusvoip",
+                            common_name: str = "radiosmoltz",
                             days_valid: int = 3650) -> tuple:
     """Verifie que cert.pem et key.pem existent. Si non, les genere.
 
@@ -379,7 +393,7 @@ def ensure_self_signed_cert(cert_path: Path,
 
         subject = issuer = x509.Name([
             x509.NameAttribute(NameOID.COMMON_NAME, common_name),
-            x509.NameAttribute(NameOID.ORGANIZATION_NAME, "CircusVOIP"),
+            x509.NameAttribute(NameOID.ORGANIZATION_NAME, "RadioSmoltz"),
         ])
 
         now = datetime.now(timezone.utc)
