@@ -18,8 +18,8 @@ dependencies = [
     "sounddevice>=0.4",
     "cryptography>=42",
     "pynput>=1.7",
-    "onnxruntime-directml">=1.24.3,
-    "rapidocr">=3.9.2
+    "onnxruntime-directml>=1.24.3",
+    "rapidocr>=3.9.2",
 ]
 
 [tool.setuptools]
