@@ -19,7 +19,7 @@ dependencies = [
     "cryptography>=42",
     "pynput>=1.7",
     "onnxruntime-directml">=1.24.3,
-    "rapidocr>=3.9.2",
+    "rapidocr>=3.9.2"
 ]
 
 [tool.setuptools]
