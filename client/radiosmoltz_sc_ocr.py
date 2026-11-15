@@ -3343,6 +3343,50 @@ def compute_proximity_volume(
 # Reader principal
 # ======================================================================
 
+import enum
+from abc import ABC, abstractmethod
+
+class OCRReaderMode(enum.Enum):
+    """Mode de lecture OCR."""
+    EASY_OCR_CPU = 0
+    RAPID_OCR = 1
+    EASY_OCR_GPU = 2
+
+class OCRReader(ABC):
+    """Interface abstraite pour un lecteur OCR (EasyOCR, RapidOCR, etc.)."""
+    def __init__(self, reader):
+        self.reader = reader
+
+    @abstractmethod
+    def readtext(self, img: "np.ndarray") -> str:
+        raise NotImplementedError("readtext() must be implemented by subclasses")
+
+
+class EasyOCRReader(OCRReader):
+    """Lecteur OCR utilisant EasyOCR avec GPU (CUDA)."""
+    def readtext(self, img: "np.ndarray", **kwargs) -> str:
+        return self.reader.readtext(img, **kwargs)
+
+class RapidOCRReader(OCRReader):
+    """Lecteur OCR utilisant RapidOCR."""
+    def readtext(self, img: "np.ndarray", **kwargs) -> str:
+        result = self.reader(img, use_det=True, use_cls=False, use_rec=True)
+        if result is None:
+            return []
+        boxes = getattr(result, "boxes", None)
+        texts = getattr(result, "txts", None)
+        scores = getattr(result, "scores", None)
+        if boxes is None or texts is None or scores is None:
+            return []
+        return [
+            (
+                box.tolist() if hasattr(box, "tolist") else box,
+                str(text),
+                float(score),
+            )
+            for box, text, score in zip(boxes, texts, scores)
+        ]
+
 
 # Zone OCR courante en pixels physiques. Lue par _process_coords_img pour
 # obtenir le gamma. Mise a jour par SCOCRReader.start() ou directement
@@ -3488,6 +3532,7 @@ def _dbg_save(img, label, text=""):
 # Globals utilises par le pipeline
 _easy_ocr = None
 _ocr_force_cpu_flag = False  # peut etre force par SCOCRReader
+_ocr_mode_flag = OCRReaderMode.EASY_OCR_CPU
 _minus_was_restored = False
 _minus_debug_save_count = 0
 # Debug interne : sauvegarde des mini-zones scannees pour la detection
@@ -3682,7 +3727,7 @@ def _capture_with_backoff(region):
         return img
 
 
-def _get_easy_ocr():
+def _get_ocr() -> OCRReader:
     """Lazy-load EasyOCR (peut bloquer ~3-5s au 1er appel le temps de
     charger les modeles). Cache global : appels suivants gratuits.
     Honore _ocr_force_cpu_flag (pour tests CPU/GPU)."""
@@ -3691,13 +3736,12 @@ def _get_easy_ocr():
         try:
             import easyocr
             force_cpu = bool(_ocr_force_cpu_flag)
+            ocr_mode = OCRReaderMode(_ocr_mode_flag)
+            _logger(f"[OCR INIT] EasyOCR v{easyocr.__version__} - mode={ocr_mode.name} force_cpu={force_cpu}")
             try:
                 import torch
                 cuda_ok = torch.cuda.is_available()
-                if cuda_ok and force_cpu:
-                    _logger(f"[OCR INIT] PyTorch {torch.__version__} - CUDA dispo MAIS mode CPU force")
-                    cuda_ok = False
-                elif cuda_ok:
+                if cuda_ok and ocr_mode == OCRReaderMode.EASY_OCR_GPU:
                     # [CUDA CAPABILITY FALLBACK]
                     # Verifier que le GPU est supporte par la build PyTorch installee.
                     # Les wheels recents (cu12.x) droppent les vieilles archs : un GTX
@@ -3735,6 +3779,7 @@ def _get_easy_ocr():
                                 f"cudaErrorNoKernelImageForDevice."
                             )
                             cuda_ok = False
+                        
                     except Exception as e_cap:
                         # On ne bloque pas l'init si la verif elle-meme echoue : on
                         # log et on laisse le flow GPU continuer (comportement
@@ -3747,8 +3792,8 @@ def _get_easy_ocr():
                         cap_str = f" (sm_{device_sm})" if device_sm is not None else ""
                         _logger(f"[OCR INIT] PyTorch {torch.__version__} - CUDA OK - "
                                 f"Device: {device_name}{cap_str}")
-                else:
-                    _logger(f"[OCR INIT] PyTorch {torch.__version__} - CUDA INDISPONIBLE - EasyOCR sera en CPU (lent !)")
+                    else:
+                        _logger(f"[OCR INIT] PyTorch {torch.__version__} - CUDA INDISPONIBLE - EasyOCR sera en CPU (lent !)")
             except Exception as e:
                 _logger(f"[OCR INIT] Impossible de verifier PyTorch : {e}")
                 cuda_ok = False
@@ -3764,13 +3809,37 @@ def _get_easy_ocr():
             except Exception:
                 pass
 
-            try:
-                _easy_ocr = easyocr.Reader(['en'], gpu=cuda_ok, quantize=True, verbose=False)
-                _logger(f"[OCR INIT] EasyOCR initialise (GPU={cuda_ok}, quantize=True)")
-            except Exception as e_quant:
-                _logger(f"[OCR INIT] Echec quantize ({e_quant}), fallback FP32")
-                _easy_ocr = easyocr.Reader(['en'], gpu=cuda_ok, verbose=False)
-                _logger(f"[OCR INIT] EasyOCR initialise (GPU={cuda_ok}, quantize=False)")
+            if ocr_mode == OCRReaderMode.EASY_OCR_GPU:
+                try:
+                    _easy_ocr = EasyOCRReader(easyocr.Reader(['en'], gpu=cuda_ok, quantize=True, verbose=False))
+                    _logger(f"[OCR INIT] EasyOCR initialise (GPU={cuda_ok}, quantize=True)")
+                except Exception as e_quant:
+                    _logger(f"[OCR INIT] Echec quantize ({e_quant}), fallback FP32")
+                    _easy_ocr = EasyOCRReader(easyocr.Reader(['en'], gpu=cuda_ok, verbose=False))
+                    _logger(f"[OCR INIT] EasyOCR initialise (GPU={cuda_ok}, quantize=False)")
+            elif ocr_mode == OCRReaderMode.RAPID_OCR:
+                try:
+                    import onnxruntime as ort
+                    from rapidocr import RapidOCR, LangRec
+                    providers = ort.get_available_providers()
+
+                    if "DmlExecutionProvider" not in providers: 
+                        raise RuntimeError( "ONNX Runtime DirectML is not available.\n" 
+                                           f"Available providers: {providers}\n")
+                    else:
+                        _easy_ocr = RapidOCRReader(RapidOCR(params={
+                                                                "Rec.lang_type": LangRec.EN,
+                                                                "Global.model_root_dir": str(_cache_dir),
+                                                                "EngineConfig.onnxruntime.use_dml": True,
+                                                            } ))
+                        _logger(f"[OCR INIT] RapidOCR initialise")
+                except Exception as e_rapid:
+                    _logger(f"[OCR INIT] Echec RapidOCR ({e_rapid}), fallback EasyOCR CPU")
+                    _easy_ocr = EasyOCRReader(easyocr.Reader(['en'], gpu=False, verbose=False))
+                    _logger(f"[OCR INIT] EasyOCR initialise (GPU=False, quantize=False)")
+            else:
+                _easy_ocr = EasyOCRReader(easyocr.Reader(['en'], gpu=False, verbose=False))
+                _logger(f"[OCR INIT] EasyOCR initialise (GPU=False, quantize=False)") 
 
             # METRICS POST-OCR : snapshot apres init. La difference avec
             # BASELINE montre ce qu'EasyOCR consomme (CPU, RAM, VRAM) sur
@@ -4110,7 +4179,7 @@ def _restore_minus_signs(img_bgr: _np.ndarray, results: list) -> list:
 
 def _easy_ocr_image(img_bgr: _np.ndarray) -> str:
     """OCR via EasyOCR   regroupe les blocs par ligne (meme Y) pour reconstruire les lignes completes."""
-    reader = _get_easy_ocr()
+    reader = _get_ocr()
     if reader is None:
         return ""
     try:
@@ -4246,7 +4315,7 @@ def _process_coords_img(img):
         # EasyOCR en priorite avec early-exit si la 1ere passe suffit
         primary_success = False
         easy_texts = []
-        easy = _get_easy_ocr()
+        easy = _get_ocr()
         if easy:
             # Passe 1 : image complete preprocessee (gamma + x4)
             t0 = _easy_ocr_image(easy_img)
@@ -4306,14 +4375,14 @@ def _process_coords_img(img):
                 if is_loading or is_menu_spawn:
                     _logger_dedup(
                         "easyocr_text_idle",
-                        f"[EASYOCR TEXT] {combined_preview}",
+                        f"[OCR TEXT] {combined_preview}",
                         value="idle_screen",
                         min_interval=60.0,
                     )
                 else:
                     _logger_dedup(
                         "easyocr_text",
-                        f"[EASYOCR TEXT] {combined_preview}",
+                        f"[OCR TEXT] {combined_preview}",
                         value=combined_preview,
                         min_interval=30.0,
                     )
@@ -4604,7 +4673,7 @@ def ocr_texts_from_region(region):
 
     texts = []
     easy_texts = []
-    easy = _get_easy_ocr()
+    easy = _get_ocr()
     if easy:
         t0 = _easy_ocr_image(easy_img)
         _dbg_save(easy_img, "coords_easyocr", t0)
@@ -4716,11 +4785,13 @@ class SCOCRReader:
         monitor: Optional[dict] = None,
         zone: Optional[dict] = None,
         force_cpu: bool = False,
+        ocr_mode: OCRReaderMode = OCRReaderMode.EASY_OCR_CPU,
         freq_hz: int = DEFAULT_FREQ_HZ,
     ) -> None:
         self._on_position = on_position
         self._monitor = monitor
         self._force_cpu = bool(force_cpu)
+        self._ocr_mode = OCRReaderMode(ocr_mode)
         self._freq_hz = max(1, int(freq_hz))
         # Etat interne
         self._zone: Optional[dict] = dict(zone) if zone else None
@@ -4757,10 +4828,11 @@ class SCOCRReader:
             self._zone = auto_ocr_zone(self._monitor)
 
         # Communiquer au pipeline OCR la zone courante (pour gamma) et le
-        # flag force CPU (lu par _get_easy_ocr au lazy init)
+        # flag force CPU (lu par _get_ocr au lazy init)
         global _zone_coords_external, _ocr_force_cpu_flag
         _zone_coords_external = dict(self._zone)
         _ocr_force_cpu_flag = bool(self._force_cpu)
+        _ocr_mode_flag = OCRReaderMode(self._ocr_mode)
 
         def _loop():
             interval = 1.0 / self._freq_hz
@@ -4880,7 +4952,7 @@ class SCOCRReader:
 # radiosmoltz_circus_ocr_client.py du fork firesstones, ou par
 # radiosmoltz_core.py) :
 #   - ensure_imaging         (= _ensure_imaging)
-#   - get_easy_ocr           (= _get_easy_ocr)
+#   - get_easy_ocr           (= _get_ocr)
 #   - easy_ocr_image         (= _easy_ocr_image)
 #   - apply_sign_memory      (= _apply_sign_memory)
 #   - is_sign_flip           (= _is_sign_flip)
@@ -4896,7 +4968,7 @@ class SCOCRReader:
 
 # Alias publics : memes objets, juste exposes sous des noms sans le prefixe _.
 ensure_imaging         = _ensure_imaging
-get_easy_ocr           = _get_easy_ocr
+get_easy_ocr           = _get_ocr
 easy_ocr_image         = _easy_ocr_image
 apply_sign_memory      = _apply_sign_memory
 is_sign_flip           = _is_sign_flip
@@ -4908,18 +4980,18 @@ normalize_numbers      = _normalize_numbers
 pretty_container_name  = _pretty_container_name
 
 
-def set_force_cpu(flag: bool) -> None:
+def set_ocr_mode(mode: OCRReaderMode) -> None:
     """Force EasyOCR en mode CPU (ou laisse l'auto-detection GPU).
 
-    A appeler AVANT le premier _get_easy_ocr() / ensure_imaging(), car le
+    A appeler AVANT le premier _get_ocr() / ensure_imaging(), car le
     flag est lu une seule fois lors de l'initialisation paresseuse du
     reader EasyOCR. Apres init, ce setter n'a plus d'effet.
 
     Exposition publique propre du flag global _ocr_force_cpu_flag utilise
     en interne et par SCOCRReader.set_force_cpu().
     """
-    global _ocr_force_cpu_flag
-    _ocr_force_cpu_flag = bool(flag)
+    global _ocr_mode_flag
+    _ocr_mode_flag = mode
 
 
 def get_minus_was_restored() -> bool:

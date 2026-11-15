@@ -2831,6 +2831,7 @@ from radiosmoltz_sc_ocr import (
     distance,
     compute_proximity_volume,
     auto_ocr_zone,
+    set_ocr_mode,
     list_monitors,
     resolve_ocr_interval,
     _easyocr_is_on_cpu,
@@ -3227,9 +3228,13 @@ def _ocr_loop_inner(ui: "ClientUI"):
     # les 30s pour appliquer un changement sans redemarrer le client.
     try:
         _ocr_freq_setting = _load_client_cfg().get("ocr_max_freq_hz", "auto")
+        _ocr_mode = _load_client_cfg().get("ocr_mode", 0)
     except Exception:
         _ocr_freq_setting = "auto"
+        _ocr_mode = 0
+    
     _ocr_target_interval = None  # resolu apres la 1ere lecture parsee
+    set_ocr_mode(_ocr_mode)  # applique le mode OCR (CPU/GPU) avant la 1ere lecture
 
     # v0.2 (optim perf) : backoff cadence sur position stable.
     # Observe en profiling : quand le joueur est immobile, le pipeline OCR

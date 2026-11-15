@@ -31,6 +31,7 @@ radiosmoltz_broadcasters.json
 radiosmoltz_admin_config.json
 
 # Client runtime state
+client/radiosmoltz_debug/*
 client/radiosmoltz_client_config.json
 client/sounds/
 

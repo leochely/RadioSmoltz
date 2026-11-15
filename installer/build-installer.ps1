@@ -265,7 +265,9 @@ $ClientDepsRequired = @(
     'pynput>=1.7',
     'psutil>=5.9',
     'cryptography>=42',
-    'Pillow>=10'                     # photos de profil CircusPhone
+    'Pillow>=10',
+    'onnxruntime-directml>=1.24.3',
+    'rapidocr>=3.9.2'
 )
 $ClientDepsOptional = @(
     'nvidia-ml-py',                  # module pynvml : metriques GPU

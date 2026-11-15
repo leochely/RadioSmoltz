@@ -158,7 +158,7 @@ compression LZMA.
 | `full` | idem + moteur OCR selon `-OcrBackend` | +243 Mo (CPU) ou +2 Go (CUDA) | rien à télécharger |
 | `none` | runtime nu | **23 Mo** | télécharge tout |
 
-Tailles mesurées sur un build réel (CPython 3.12.13, PySide6-Essentials 6.11.1,
+Tailles mesurées sur un build réel (CPython 3.13.15, PySide6-Essentials 6.11.1,
 OpenCV 4.14, Inno Setup 6.7.3). L'installeur serveur fait 28 Mo.
 
 ### Moteur OCR : CPU ou CUDA
@@ -301,7 +301,7 @@ installeurs produits ne sont pas signés — voir plus bas.
 | `-Deps bundled\|full\|none` | cf. tableau ci-dessus |
 | `-OcrBackend cpu\|cuda` | variante de PyTorch (défaut `cpu`) |
 | `-Version 0.2.1 -Build 58 -Channel stable` | surcharge `radiosmoltz_version.json` |
-| `-PythonVersion 3.12` | série CPython embarquée |
+| `-PythonVersion 3.13` | série CPython embarquée |
 | `-FullQt` | wheel `PySide6` complet au lieu de `PySide6-Essentials` |
 | `-Clean` | vide `installer\work\` (re-extraction + réinstallation des deps) |
 | `-SkipPrune` | garde tout le runtime (debug d'un import manquant) |
@@ -547,7 +547,7 @@ La chaîne a été exécutée de bout en bout sur Windows 11 x64 avec Inno Setup
 - import des 13 dépendances embarquées dans le runtime installé, y compris la
   création d'une `QApplication` (le plugin de plateforme Qt survit à
   l'élagage) ;
-- `py_compile` des 7 modules client sous CPython 3.12 ;
+- `py_compile` des 7 modules client sous CPython 3.13 ;
 - **lancement réel du client installé** : bootstrap pip satisfait en 10 ms
   (aucun téléchargement), fenêtre visible en 0,9 s, rien sur `stderr` ;
 - désinstallation : `runtime\` entièrement supprimé (y compris les paquets

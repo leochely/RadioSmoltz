@@ -1743,7 +1743,7 @@ _CORE_MANAGED_CFG_KEYS = frozenset({
     # Overlays
     "overlays_active", "overlays_config", "overlays_show",
     # OCR
-    "ocr_force_cpu", "ocr_max_freq_hz", "zone_coords", "zone_source",
+    "ocr_force_cpu", "ocr_max_freq_hz", "zone_coords", "zone_source", "ocr_mode",
     # Gamelog SC
     "gamelog_path",
     # Mode RP
@@ -11242,24 +11242,52 @@ class MainWindow(QMainWindow):
 
         self.cb_ocr_force_cpu = QCheckBox("Forcer le mode CPU pour l'OCR (au lieu du GPU)")
         # Etat initial depuis la config client1 si dispo, sinon false
+        ocr_mode = _sco.OCRReaderMode(_sco.OCRReaderMode.EASY_OCR_CPU)
         force_cpu = False
         if _CORE_AVAILABLE:
             try:
                 core_cfg = _core._load_client_cfg()
+                ocr_mode = core_cfg.get("ocr_mode", _sco.OCRReaderMode.EASY_OCR_CPU)
                 force_cpu = bool(core_cfg.get("ocr_force_cpu", False))
             except Exception:
                 pass
         else:
-            force_cpu = bool(self._cfg.get("ocr_force_cpu", False))
+            ocr_mode = core_cfg.get("ocr_mode", _sco.OCRReaderMode.EASY_OCR_CPU)
+            force_cpu = bool(core_cfg.get("ocr_force_cpu", False))
         self.cb_ocr_force_cpu.setChecked(force_cpu)
         self.cb_ocr_force_cpu.toggled.connect(self._on_ocr_force_cpu_toggled)
         v_ocr.addWidget(self.cb_ocr_force_cpu)
 
+        self.lbl_ocr_force_cpu = QLabel("")
+        self.lbl_ocr_force_cpu.setStyleSheet("color: #888; font-size: 9pt;")
+        self.lbl_ocr_force_cpu.setWordWrap(True)
+
+        self._refresh_ocr_mode_info()
+        v_ocr.addWidget(self.lbl_ocr_force_cpu)      
+
+        row_ocr_mode = QHBoxLayout()
+        row_ocr_mode.addWidget(QLabel("Mode OCR :"))
+        self.cb_ocr_mode = QComboBox()
+        row_ocr_mode.addWidget(self.cb_ocr_mode, stretch=1)
+        v_ocr.addLayout(row_ocr_mode)
+        for mode in list(_sco.OCRReaderMode):
+            self.cb_ocr_mode.addItem(mode.name)
+
+        _sel_idx = next(
+            (i for i, mode in enumerate(list(_sco.OCRReaderMode)) if mode.value == ocr_mode),
+            0,
+        )
+
         self.lbl_ocr_mode_info = QLabel("")
         self.lbl_ocr_mode_info.setStyleSheet("color: #888; font-size: 9pt;")
         self.lbl_ocr_mode_info.setWordWrap(True)
+
+        self.cb_ocr_mode.setCurrentIndex(_sel_idx)
+        self.cb_ocr_mode.currentIndexChanged.connect(self._on_ocr_mode_changed)
+  
         self._refresh_ocr_mode_info()
-        v_ocr.addWidget(self.lbl_ocr_mode_info)
+        v_ocr.addWidget(self.lbl_ocr_mode_info)     
+
 
         # --- Cadence OCR (frequence de lecture de la position) ---
         # Plafond du nombre de lectures OCR par seconde. Plus haut = suivi
@@ -12808,6 +12836,33 @@ class MainWindow(QMainWindow):
             "RadioSmoltz (EasyOCR ne peut pas etre reinitialise a chaud).",
         )
 
+    @Slot(bool)
+    def _on_ocr_mode_changed(self, mode: _sco.OCRReaderMode):
+        """Toggle OCR force CPU : ecrit dans la config CLIENT1
+        (radiosmoltz_client_config.json) car c'est ce config-la que
+        radiosmoltz_client.py lit au demarrage pour decider GPU vs CPU.
+        Notre config client2 n'est pas lue par le code OCR du client1."""
+        if _CORE_AVAILABLE:
+            try:
+                core_cfg = _core._load_client_cfg()
+                core_cfg["ocr_mode"] = mode
+                _core._save_client_cfg(core_cfg)
+                self._on_log(f"[OCR] ocr_mode={mode} sauve dans "
+                             f"radiosmoltz_client_config.json")
+            except Exception as e:
+                self._on_log(f"[OCR] Echec ecriture config client1 : {e}")
+        # On garde aussi une copie dans notre config (au cas ou)
+        self._cfg["ocr_mode"] = mode
+        _save_cfg(self._cfg)
+        self._refresh_ocr_mode_info()
+        QMessageBox.information(
+            self,
+            "RadioSmoltz",
+            f"Mode OCR : {mode}\n\n"
+            "Le changement sera applique au prochain demarrage de "
+            "RadioSmoltz (EasyOCR ne peut pas etre reinitialise a chaud).",
+        )
+
     def _on_ocr_freq_changed(self, index: int):
         """Cadence OCR : ecrit ocr_max_freq_hz dans la config CLIENT1
         (lue par _ocr_loop_inner dans radiosmoltz_core.py). La boucle OCR
@@ -12832,23 +12887,17 @@ class MainWindow(QMainWindow):
     def _refresh_ocr_mode_info(self):
         if not hasattr(self, "lbl_ocr_mode_info"):
             return
-        if self.cb_ocr_force_cpu.isChecked():
+        if  _sco.OCRReaderMode(self.cb_ocr_mode.currentIndex()) == _sco.OCRReaderMode.EASY_OCR_GPU:
             self.lbl_ocr_mode_info.setText(
-                "Mode actuel : CPU (force).\n"
-                "Plus lent mais marche sans GPU ou avec GPU instable. "
-                "Effectif au prochain demarrage."
+                "Utilise le GPU pour l'OCR. Plus rapide mais necessite GPU avec CUDA."
             )
-            self.lbl_ocr_mode_info.setStyleSheet(
-                "color: #ffaa44; font-size: 9pt;"
-            )
-        else:
+        elif _sco.OCRReaderMode(self.cb_ocr_mode.currentIndex()) == _sco.OCRReaderMode.RAPID_OCR:
             self.lbl_ocr_mode_info.setText(
-                "Mode actuel : GPU automatique.\n"
-                "Plus rapide. Si l'OCR plante ou que le GPU sature, "
-                "basculer en CPU."
+                "Utilise RapidOCR. Plus lent mais compatible avec tous les GPU."
             )
-            self.lbl_ocr_mode_info.setStyleSheet(
-                "color: #88dd88; font-size: 9pt;"
+        elif _sco.OCRReaderMode(self.cb_ocr_mode.currentIndex()) == _sco.OCRReaderMode.EASY_OCR_CPU:
+            self.lbl_ocr_mode_info.setText(
+                "Utilise le CPU pour l'OCR. Plus lent mais compatible sans GPU."
             )
 
     # ------------------------------------------------------------
