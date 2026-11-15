@@ -3727,7 +3727,7 @@ def _capture_with_backoff(region):
         return img
 
 
-def _get_easy_ocr() -> OCRReader:
+def _get_ocr() -> OCRReader:
     """Lazy-load EasyOCR (peut bloquer ~3-5s au 1er appel le temps de
     charger les modeles). Cache global : appels suivants gratuits.
     Honore _ocr_force_cpu_flag (pour tests CPU/GPU)."""
@@ -4179,7 +4179,7 @@ def _restore_minus_signs(img_bgr: _np.ndarray, results: list) -> list:
 
 def _easy_ocr_image(img_bgr: _np.ndarray) -> str:
     """OCR via EasyOCR   regroupe les blocs par ligne (meme Y) pour reconstruire les lignes completes."""
-    reader = _get_easy_ocr()
+    reader = _get_ocr()
     if reader is None:
         return ""
     try:
@@ -4315,7 +4315,7 @@ def _process_coords_img(img):
         # EasyOCR en priorite avec early-exit si la 1ere passe suffit
         primary_success = False
         easy_texts = []
-        easy = _get_easy_ocr()
+        easy = _get_ocr()
         if easy:
             # Passe 1 : image complete preprocessee (gamma + x4)
             t0 = _easy_ocr_image(easy_img)
@@ -4375,14 +4375,14 @@ def _process_coords_img(img):
                 if is_loading or is_menu_spawn:
                     _logger_dedup(
                         "easyocr_text_idle",
-                        f"[EASYOCR TEXT] {combined_preview}",
+                        f"[OCR TEXT] {combined_preview}",
                         value="idle_screen",
                         min_interval=60.0,
                     )
                 else:
                     _logger_dedup(
                         "easyocr_text",
-                        f"[EASYOCR TEXT] {combined_preview}",
+                        f"[OCR TEXT] {combined_preview}",
                         value=combined_preview,
                         min_interval=30.0,
                     )
@@ -4673,7 +4673,7 @@ def ocr_texts_from_region(region):
 
     texts = []
     easy_texts = []
-    easy = _get_easy_ocr()
+    easy = _get_ocr()
     if easy:
         t0 = _easy_ocr_image(easy_img)
         _dbg_save(easy_img, "coords_easyocr", t0)
@@ -4828,7 +4828,7 @@ class SCOCRReader:
             self._zone = auto_ocr_zone(self._monitor)
 
         # Communiquer au pipeline OCR la zone courante (pour gamma) et le
-        # flag force CPU (lu par _get_easy_ocr au lazy init)
+        # flag force CPU (lu par _get_ocr au lazy init)
         global _zone_coords_external, _ocr_force_cpu_flag
         _zone_coords_external = dict(self._zone)
         _ocr_force_cpu_flag = bool(self._force_cpu)
@@ -4952,7 +4952,7 @@ class SCOCRReader:
 # radiosmoltz_circus_ocr_client.py du fork firesstones, ou par
 # radiosmoltz_core.py) :
 #   - ensure_imaging         (= _ensure_imaging)
-#   - get_easy_ocr           (= _get_easy_ocr)
+#   - get_easy_ocr           (= _get_ocr)
 #   - easy_ocr_image         (= _easy_ocr_image)
 #   - apply_sign_memory      (= _apply_sign_memory)
 #   - is_sign_flip           (= _is_sign_flip)
@@ -4968,7 +4968,7 @@ class SCOCRReader:
 
 # Alias publics : memes objets, juste exposes sous des noms sans le prefixe _.
 ensure_imaging         = _ensure_imaging
-get_easy_ocr           = _get_easy_ocr
+get_easy_ocr           = _get_ocr
 easy_ocr_image         = _easy_ocr_image
 apply_sign_memory      = _apply_sign_memory
 is_sign_flip           = _is_sign_flip
@@ -4983,7 +4983,7 @@ pretty_container_name  = _pretty_container_name
 def set_ocr_mode(mode: OCRReaderMode) -> None:
     """Force EasyOCR en mode CPU (ou laisse l'auto-detection GPU).
 
-    A appeler AVANT le premier _get_easy_ocr() / ensure_imaging(), car le
+    A appeler AVANT le premier _get_ocr() / ensure_imaging(), car le
     flag est lu une seule fois lors de l'initialisation paresseuse du
     reader EasyOCR. Apres init, ce setter n'a plus d'effet.
 

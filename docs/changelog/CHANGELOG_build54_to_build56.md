@@ -96,7 +96,7 @@ mêmes objets, juste sous un nom sans prefixe `_`.
 | Nom public | Pointe vers | Consommateur actuel chez toi |
 |---|---|---|
 | `ensure_imaging` | `_ensure_imaging` | `engine.py` |
-| `get_easy_ocr` | `_get_easy_ocr` | `engine.py` |
+| `get_easy_ocr` | `_get_ocr` | `engine.py` |
 | `easy_ocr_image` | `_easy_ocr_image` | `engine.py` |
 | `apply_sign_memory` | `_apply_sign_memory` | `radiosmoltz_core.py` |
 | `is_sign_flip` | `_is_sign_flip` | `radiosmoltz_core.py` |
